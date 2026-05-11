@@ -4,6 +4,8 @@ import tkintermapview
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry import Point, LineString, Polygon
+from shapely import wkt  # NEW: For converting geometry to text for JSON saving
+import json  # NEW: For saving/loading workspaces
 import os
 from geopy.distance import geodesic
 from geopy.geocoders import Nominatim
@@ -102,7 +104,7 @@ class GISNetworkBuilder(tk.Tk):
         tk.Button(parent, text="Clear Selection", command=self.render_map, width=20).pack(pady=5)
 
     def _setup_layers_tab(self, parent):
-        tk.Label(parent, text="Visibility", font=("Arial", 10, "bold")).pack(pady=10)
+        tk.Label(parent, text="Visibility", font=("Arial", 10, "bold")).pack(pady=5)
         self.show_points, self.show_lines, self.show_polygons = tk.BooleanVar(value=True), tk.BooleanVar(
             value=True), tk.BooleanVar(value=True)
         tk.Checkbutton(parent, text="Show Points", variable=self.show_points, command=self.render_map).pack(anchor="w",
@@ -112,35 +114,40 @@ class GISNetworkBuilder(tk.Tk):
         tk.Checkbutton(parent, text="Show Polygons", variable=self.show_polygons, command=self.render_map).pack(
             anchor="w", padx=20)
 
-        tk.Frame(parent, height=2, bg="gray").pack(fill="x", padx=20, pady=10)
+        tk.Frame(parent, height=2, bg="gray").pack(fill="x", padx=20, pady=5)
         tk.Label(parent, text="Snapping Tolerance:", font=("Arial", 9)).pack()
         tk.Scale(parent, from_=0.0, to=0.002, resolution=0.0001, orient="horizontal",
                  variable=self.snapping_tolerance).pack(fill="x", padx=20)
 
-        tk.Frame(parent, height=20).pack()
-        tk.Label(parent, text="Data Tools", font=("Arial", 10, "bold")).pack(pady=5)
+        tk.Frame(parent, height=10).pack()
+        tk.Label(parent, text="Data Tools", font=("Arial", 10, "bold")).pack(pady=2)
         tk.Button(parent, text="🎨 Generate Choropleth", command=self.generate_choropleth, width=20, bg="#ffefd5").pack(
-            pady=5)
+            pady=2)
         tk.Button(parent, text="📊 Attribute Table", command=self.open_attribute_table, width=20, bg="#e6e6fa").pack(
-            pady=5)
-        tk.Button(parent, text="🌐 Web Map Export", command=self.export_to_web, width=20, bg="#e0ffff").pack(pady=5)
-        tk.Button(parent, text="📄 Export to CSV", command=self.export_to_csv, width=20, bg="#dcdcdc").pack(pady=5)
+            pady=2)
+        tk.Button(parent, text="🌐 Web Map Export", command=self.export_to_web, width=20, bg="#e0ffff").pack(pady=2)
+        tk.Button(parent, text="📄 Export to CSV", command=self.export_to_csv, width=20, bg="#dcdcdc").pack(pady=2)
 
-        tk.Frame(parent, height=20).pack()
-        tk.Label(parent, text="File I/O", font=("Arial", 10, "bold")).pack(pady=5)
+        tk.Frame(parent, height=10).pack()
+        tk.Label(parent, text="File I/O", font=("Arial", 10, "bold")).pack(pady=2)
 
-        # NEW: OpenStreetMap Import Button
-        tk.Button(parent, text="🌍 Import OSM Data", command=self.import_osm_data, width=20, bg="#ffebcd").pack(pady=5)
+        tk.Button(parent, text="🌍 Import OSM Data", command=self.import_osm_data, width=20, bg="#ffebcd").pack(pady=2)
 
-        tk.Button(parent, text="📂 Load File", command=self.load_file, width=20, bg="#ffe5b4").pack(pady=5)
-        tk.Button(parent, text="💾 Save SHP", command=self.save_network, width=20, bg="lightgreen").pack(pady=5)
-        tk.Button(parent, text="🗑️ Clear Map", command=self.clear_map, width=20, bg="#ffcccc").pack(pady=5)
+        # NEW: Project Save/Load Buttons
+        tk.Button(parent, text="💾 Save Project (JSON)", command=self.save_workspace, width=20, bg="#ffb6c1").pack(
+            pady=2)
+        tk.Button(parent, text="📂 Load Project (JSON)", command=self.load_workspace, width=20, bg="#ffdab9").pack(
+            pady=2)
+
+        tk.Button(parent, text="📂 Load GIS File", command=self.load_file, width=20, bg="#ffe5b4").pack(pady=2)
+        tk.Button(parent, text="💾 Save SHP", command=self.save_network, width=20, bg="lightgreen").pack(pady=2)
+
+        tk.Button(parent, text="🗑️ Clear Map", command=self.clear_map, width=20, bg="#ffcccc").pack(pady=10)
 
     # ==========================================
     # LOGIC: QoL FEATURES & IMPORTS
     # ==========================================
     def import_osm_data(self):
-        # NEW: Added a strong warning about large cities to the prompt
         prompt_msg = (
             "Enter a small local neighborhood (e.g., 'Moseley, Birmingham'):\n\n"
             "⚠️ WARNING: Stick to local neighborhoods! Searching for massive "
@@ -152,12 +159,10 @@ class GISNetworkBuilder(tk.Tk):
         try:
             import osmnx as ox
             self.lbl_status.config(text="Downloading OSM Data...")
-            self.update()  # Force UI to show the loading message
+            self.update()
 
-            # --- THE FIX: Use graph_from_address with a 1500m radius instead of graph_from_place ---
             G = ox.graph_from_address(place_name, dist=1500, network_type='drive')
 
-            # 1. Convert OSM Nodes to our standard Points
             node_map = {}
             for osmid, data in G.nodes(data=True):
                 lat, lon = data['y'], data['x']
@@ -169,14 +174,12 @@ class GISNetworkBuilder(tk.Tk):
                 self.nodes.append(new_node)
                 node_map[osmid] = new_node
 
-            # 2. Convert OSM Edges to our standard Lines
             for u, v, key, data in G.edges(keys=True, data=True):
                 if 'geometry' in data:
                     line_geom = data['geometry']
                 else:
                     line_geom = LineString([node_map[u]['geometry'], node_map[v]['geometry']])
 
-                # Clean up dirty OSM data fields
                 name = data.get('name', 'Unnamed Road')
                 if isinstance(name, list): name = name[0]
                 highway = data.get('highway', 'Unclassified')
@@ -184,7 +187,6 @@ class GISNetworkBuilder(tk.Tk):
                 maxspeed = data.get('maxspeed', '30')
                 if isinstance(maxspeed, list): maxspeed = maxspeed[0]
 
-                # Strip out ' mph' text so routing math works
                 clean_speed = str(maxspeed).replace(" mph", "").replace(" km/h", "")
 
                 new_edge = {
@@ -199,7 +201,6 @@ class GISNetworkBuilder(tk.Tk):
                 }
                 self.edges.append(new_edge)
 
-            # 3. Center map on the new data
             if self.nodes:
                 self.map_widget.set_position(self.nodes[-1]['geometry'].y, self.nodes[-1]['geometry'].x)
                 self.map_widget.set_zoom(14)
@@ -216,24 +217,106 @@ class GISNetworkBuilder(tk.Tk):
             self.lbl_status.config(text="Mode: None")
             messagebox.showerror("OSM Import Error", f"Could not fetch data for '{place_name}'.\n\nError: {e}")
 
-    def export_to_csv(self):
-        all_data = []
-        for n in self.nodes: all_data.append({'Type': 'Point', **n['attributes']})
-        for e in self.edges: all_data.append({'Type': 'Line', **e['attributes']})
-        for p in self.polygons: all_data.append({'Type': 'Polygon', **p['attributes']})
-
-        if not all_data: return
-        filepath = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv")])
-        if filepath:
-            pd.DataFrame(all_data).to_csv(filepath, index=False)
-            messagebox.showinfo("Success", "Attributes exported to CSV!")
-
     def get_snapped_coord(self, lat, lon):
         tol = self.snapping_tolerance.get()
         for n in self.nodes:
             if abs(n['geometry'].y - lat) < tol and abs(n['geometry'].x - lon) < tol:
                 return n['geometry'].y, n['geometry'].x
         return lat, lon
+
+    # ==========================================
+    # WORKSPACE SAVE / LOAD (JSON)
+    # ==========================================
+    def save_workspace(self):
+        """Saves the entire active session to a JSON file."""
+        if not self.nodes and not self.edges and not self.polygons:
+            messagebox.showinfo("Info", "Map is empty! Nothing to save.")
+            return
+
+        filepath = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON Project", "*.json")])
+        if not filepath: return
+
+        try:
+            workspace_data = {"nodes": [], "edges": [], "polygons": []}
+
+            for n in self.nodes:
+                data = {"NodeID": n.get("NodeID"), "geometry": n["geometry"].wkt, "attributes": n["attributes"]}
+                if "custom_color" in n: data["custom_color"] = n["custom_color"]
+                workspace_data["nodes"].append(data)
+
+            for e in self.edges:
+                data = {"EdgeID": e.get("EdgeID"), "geometry": e["geometry"].wkt, "attributes": e["attributes"]}
+                if "custom_color" in e: data["custom_color"] = e["custom_color"]
+                workspace_data["edges"].append(data)
+
+            for p in self.polygons:
+                data = {"PolygonID": p.get("PolygonID"), "geometry": p["geometry"].wkt, "attributes": p["attributes"]}
+                if "custom_color" in p: data["custom_color"] = p["custom_color"]
+                workspace_data["polygons"].append(data)
+
+            with open(filepath, "w") as f:
+                json.dump(workspace_data, f, indent=4)
+
+            messagebox.showinfo("Success", "Project Workspace saved successfully!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not save workspace: {e}")
+
+    def load_workspace(self):
+        """Loads a previously saved JSON workspace, restoring all attributes and styling."""
+        filepath = filedialog.askopenfilename(filetypes=[("JSON Project", "*.json")])
+        if not filepath: return
+
+        try:
+            with open(filepath, "r") as f:
+                workspace_data = json.load(f)
+
+            # Clear current map completely before loading new workspace
+            self.nodes.clear()
+            self.edges.clear()
+            self.polygons.clear()
+            self.history.clear()
+            self.clear_route()
+
+            for n_data in workspace_data.get("nodes", []):
+                node = {
+                    "NodeID": n_data.get("NodeID", len(self.nodes) + 1),
+                    "geometry": wkt.loads(n_data["geometry"]),
+                    "attributes": n_data.get("attributes", {})
+                }
+                if "custom_color" in n_data: node["custom_color"] = n_data["custom_color"]
+                self.nodes.append(node)
+
+            for e_data in workspace_data.get("edges", []):
+                edge = {
+                    "EdgeID": e_data.get("EdgeID", len(self.edges) + 1),
+                    "geometry": wkt.loads(e_data["geometry"]),
+                    "attributes": e_data.get("attributes", {})
+                }
+                if "custom_color" in e_data: edge["custom_color"] = e_data["custom_color"]
+                self.edges.append(edge)
+
+            for p_data in workspace_data.get("polygons", []):
+                poly = {
+                    "PolygonID": p_data.get("PolygonID", len(self.polygons) + 1),
+                    "geometry": wkt.loads(p_data["geometry"]),
+                    "attributes": p_data.get("attributes", {})
+                }
+                if "custom_color" in p_data: poly["custom_color"] = p_data["custom_color"]
+                self.polygons.append(poly)
+
+            # Center map on newly loaded data
+            if self.nodes:
+                self.map_widget.set_position(self.nodes[0]['geometry'].y, self.nodes[0]['geometry'].x)
+            elif self.edges:
+                first_coord = self.edges[0]['geometry'].coords[0]
+                self.map_widget.set_position(first_coord[1], first_coord[0])
+
+            self.render_map()
+            messagebox.showinfo("Success",
+                                f"Project Loaded!\nFound {len(self.nodes)} points, {len(self.edges)} roads, and {len(self.polygons)} polygons.")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not load workspace: {e}")
 
     # ==========================================
     # CORE LOGIC & EVENT HANDLERS
@@ -471,6 +554,18 @@ class GISNetworkBuilder(tk.Tk):
     # ==========================================
     # DATA EXPORT & FILE I/O
     # ==========================================
+    def export_to_csv(self):
+        all_data = []
+        for n in self.nodes: all_data.append({'Type': 'Point', **n['attributes']})
+        for e in self.edges: all_data.append({'Type': 'Line', **e['attributes']})
+        for p in self.polygons: all_data.append({'Type': 'Polygon', **p['attributes']})
+
+        if not all_data: return
+        filepath = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv")])
+        if filepath:
+            pd.DataFrame(all_data).to_csv(filepath, index=False)
+            messagebox.showinfo("Success", "Attributes exported to CSV!")
+
     def open_attribute_table(self):
         ui_datatable.AttributeTableWindow(self, self.nodes, self.edges, self.polygons, self.pan_to_feature)
 
@@ -495,7 +590,7 @@ class GISNetworkBuilder(tk.Tk):
             messagebox.showerror("Error", str(e))
 
     def load_file(self):
-        fp = filedialog.askopenfilename()
+        fp = filedialog.askopenfilename(filetypes=[("All Supported", "*.shp *.kml *.geojson")])
         if not fp: return
         try:
             pts, lns, polys = file_handler.load_spatial_file(fp)
