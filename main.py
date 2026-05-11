@@ -27,7 +27,7 @@ class GISNetworkBuilder(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("GIS Network Builder Pro - Enterprise Edition")
-        self.geometry("1250x800")
+        self.geometry("1250x850")
 
         self.nodes, self.edges, self.polygons = [], [], []
         self.current_mode = "None"
