@@ -55,9 +55,8 @@ class DynamicEditorPopup(tk.Toplevel):
         key_ent.insert(0, key)
         key_ent.grid(row=self.row_counter, column=0, padx=5, pady=2, sticky="e")
 
-        # --- NEW: DROPDOWN LOGIC ---
+        # --- UPDATED DROPDOWN LOGIC ---
         if self.item_type == "Point" and key == "Asset":
-            # Preset Council Assets
             val_ent = ttk.Combobox(self.scrollable_frame, width=18, values=[
                 "Streetlight", "Pothole", "Traffic Sign", "Bench", "Drain",
                 "Tree", "Bus Stop", "Litter Bin", "Bollard", "Graffiti",
@@ -65,17 +64,19 @@ class DynamicEditorPopup(tk.Toplevel):
             ])
             val_ent.set(str(val))
         elif self.item_type == "Line" and key == "Class":
-            # Preset Road Classes
             val_ent = ttk.Combobox(self.scrollable_frame, width=15,
                                    values=["A-Road", "B-Road", "C-Road", "Unclassified", "Footpath"])
             val_ent.set(str(val))
+        # NEW: Professional Direction Dropdown
+        elif self.item_type == "Line" and key == "Direction":
+            val_ent = ttk.Combobox(self.scrollable_frame, width=15,
+                                   values=["Two-Way", "One-Way (A to B)", "One-Way (B to A)"])
+            val_ent.set(str(val))
         else:
-            # Standard Text Box for everything else
             val_ent = tk.Entry(self.scrollable_frame, width=18)
             val_ent.insert(0, str(val))
 
         val_ent.grid(row=self.row_counter, column=1, padx=5, pady=2)
-
         self.entries[key_ent] = val_ent
         self.row_counter += 1
 

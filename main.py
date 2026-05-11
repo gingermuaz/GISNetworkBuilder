@@ -129,7 +129,7 @@ class GISNetworkBuilder(ctk.CTk):
         scroll_frame = ctk.CTkScrollableFrame(parent, fg_color="transparent")
         scroll_frame.pack(fill="both", expand=True)
 
-        # --- NEW: Base Map Style Dropdown ---
+        # Base Map Style Dropdown
         ctk.CTkLabel(scroll_frame, text="Base Map Style", font=("Arial", 14, "bold")).pack(pady=5)
         self.map_style_var = ctk.StringVar(value="Google Maps")
         self.map_style_dropdown = ctk.CTkOptionMenu(
@@ -179,11 +179,7 @@ class GISNetworkBuilder(ctk.CTk):
         ctk.CTkButton(scroll_frame, text="🗑️ Clear Map", command=self.clear_map, fg_color="#c0392b",
                       hover_color="#922b21").pack(pady=(15, 5), fill="x", padx=20)
 
-    # ==========================================
-    # MAP STYLE LOGIC
-    # ==========================================
     def change_map_style(self, style_name):
-        """Changes the background tile server of the map widget dynamically."""
         if style_name == "Google Maps":
             self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga",
                                             max_zoom=22)
@@ -196,12 +192,8 @@ class GISNetworkBuilder(ctk.CTk):
         elif style_name == "OpenStreetMap":
             self.map_widget.set_tile_server("https://a.tile.openstreetmap.org/{z}/{x}/{y}.png", max_zoom=19)
         elif style_name == "Dark Mode":
-            # CartoDB Dark Matter tile server
             self.map_widget.set_tile_server("https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", max_zoom=19)
 
-    # ==========================================
-    # LOGIC: QoL FEATURES & IMPORTS
-    # ==========================================
     def import_osm_data(self):
         prompt_msg = (
             "Enter a small local neighborhood (e.g., 'Moseley, Birmingham'):\n\n"
@@ -244,11 +236,14 @@ class GISNetworkBuilder(ctk.CTk):
 
                 clean_speed = str(maxspeed).replace(" mph", "").replace(" km/h", "")
 
+                # NEW: Added Chainage and Direction to OSM imports
                 new_edge = {
                     'EdgeID': len(self.edges) + 1,
                     'geometry': line_geom,
                     'attributes': {
                         'Name': name,
+                        'Chainage': "0+000",
+                        'Direction': "Two-Way",
                         'Class': highway,
                         'Speed': clean_speed,
                         'Length_m': round(float(data.get('length', 0.0)), 2)
@@ -263,7 +258,7 @@ class GISNetworkBuilder(ctk.CTk):
             self.lbl_status.configure(text="Mode: NONE")
             self.render_map()
             messagebox.showinfo("Success",
-                                f"Imported {len(node_map)} intersections and {len(G.edges)} roads within 1.5km of {place_name}!")
+                                f"Imported {len(node_map)} intersections and {len(G.edges)} roads from {place_name}!")
 
         except ImportError:
             messagebox.showerror("Missing Library", "OSMnx is not installed.\nPlease run: pip install osmnx")
@@ -279,38 +274,28 @@ class GISNetworkBuilder(ctk.CTk):
                 return n['geometry'].y, n['geometry'].x
         return lat, lon
 
-    # ==========================================
-    # WORKSPACE SAVE / LOAD (JSON)
-    # ==========================================
     def save_workspace(self):
         if not self.nodes and not self.edges and not self.polygons:
             messagebox.showinfo("Info", "Map is empty! Nothing to save.")
             return
-
         filepath = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON Project", "*.json")])
         if not filepath: return
-
         try:
             workspace_data = {"nodes": [], "edges": [], "polygons": []}
-
             for n in self.nodes:
-                data = {"NodeID": n.get("NodeID"), "geometry": n["geometry"].wkt, "attributes": n["attributes"]}
+                data = {"geometry": n["geometry"].wkt, "attributes": n["attributes"]}
                 if "custom_color" in n: data["custom_color"] = n["custom_color"]
                 workspace_data["nodes"].append(data)
-
             for e in self.edges:
-                data = {"EdgeID": e.get("EdgeID"), "geometry": e["geometry"].wkt, "attributes": e["attributes"]}
+                data = {"geometry": e["geometry"].wkt, "attributes": e["attributes"]}
                 if "custom_color" in e: data["custom_color"] = e["custom_color"]
                 workspace_data["edges"].append(data)
-
             for p in self.polygons:
-                data = {"PolygonID": p.get("PolygonID"), "geometry": p["geometry"].wkt, "attributes": p["attributes"]}
+                data = {"geometry": p["geometry"].wkt, "attributes": p["attributes"]}
                 if "custom_color" in p: data["custom_color"] = p["custom_color"]
                 workspace_data["polygons"].append(data)
-
             with open(filepath, "w") as f:
                 json.dump(workspace_data, f, indent=4)
-
             messagebox.showinfo("Success", "Project Workspace saved successfully!")
         except Exception as e:
             messagebox.showerror("Error", f"Could not save workspace: {e}")
@@ -318,60 +303,28 @@ class GISNetworkBuilder(ctk.CTk):
     def load_workspace(self):
         filepath = filedialog.askopenfilename(filetypes=[("JSON Project", "*.json")])
         if not filepath: return
-
         try:
             with open(filepath, "r") as f:
                 workspace_data = json.load(f)
-
-            self.nodes.clear()
-            self.edges.clear()
-            self.polygons.clear()
-            self.history.clear()
-            self.clear_route()
-
+            self.nodes.clear(); self.edges.clear(); self.polygons.clear(); self.history.clear(); self.clear_route()
             for n_data in workspace_data.get("nodes", []):
-                node = {
-                    "NodeID": n_data.get("NodeID", len(self.nodes) + 1),
-                    "geometry": wkt.loads(n_data["geometry"]),
-                    "attributes": n_data.get("attributes", {})
-                }
+                node = {"geometry": wkt.loads(n_data["geometry"]), "attributes": n_data.get("attributes", {})}
                 if "custom_color" in n_data: node["custom_color"] = n_data["custom_color"]
                 self.nodes.append(node)
-
             for e_data in workspace_data.get("edges", []):
-                edge = {
-                    "EdgeID": e_data.get("EdgeID", len(self.edges) + 1),
-                    "geometry": wkt.loads(e_data["geometry"]),
-                    "attributes": e_data.get("attributes", {})
-                }
+                edge = {"geometry": wkt.loads(e_data["geometry"]), "attributes": e_data.get("attributes", {})}
                 if "custom_color" in e_data: edge["custom_color"] = e_data["custom_color"]
                 self.edges.append(edge)
-
             for p_data in workspace_data.get("polygons", []):
-                poly = {
-                    "PolygonID": p_data.get("PolygonID", len(self.polygons) + 1),
-                    "geometry": wkt.loads(p_data["geometry"]),
-                    "attributes": p_data.get("attributes", {})
-                }
+                poly = {"geometry": wkt.loads(p_data["geometry"]), "attributes": p_data.get("attributes", {})}
                 if "custom_color" in p_data: poly["custom_color"] = p_data["custom_color"]
                 self.polygons.append(poly)
-
-            if self.nodes:
-                self.map_widget.set_position(self.nodes[0]['geometry'].y, self.nodes[0]['geometry'].x)
-            elif self.edges:
-                first_coord = self.edges[0]['geometry'].coords[0]
-                self.map_widget.set_position(first_coord[1], first_coord[0])
-
+            if self.nodes: self.map_widget.set_position(self.nodes[0]['geometry'].y, self.nodes[0]['geometry'].x)
             self.render_map()
-            messagebox.showinfo("Success",
-                                f"Project Loaded!\nFound {len(self.nodes)} points, {len(self.edges)} roads, and {len(self.polygons)} polygons.")
-
+            messagebox.showinfo("Success", "Project Loaded!")
         except Exception as e:
             messagebox.showerror("Error", f"Could not load workspace: {e}")
 
-    # ==========================================
-    # CORE LOGIC & EVENT HANDLERS
-    # ==========================================
     def set_mode(self, mode_name):
         self.current_mode = mode_name;
         self.current_drawing_coords = []
@@ -414,7 +367,6 @@ class GISNetworkBuilder(ctk.CTk):
                 self.map_widget.set_marker(n['geometry'].y, n['geometry'].x, text=label_text,
                                            command=self.on_marker_click)
 
-        # Draw Start and End Markers in Green and Red
         if self.route_start_coord:
             self.map_widget.set_marker(self.route_start_coord[1], self.route_start_coord[0], text="Start",
                                        marker_color_circle="white", marker_color_outside="#27ae60")
@@ -443,9 +395,7 @@ class GISNetworkBuilder(ctk.CTk):
                 self.route_end_coord = (lon, lat)
             else:
                 self.calculate_isochrone_area((lon, lat))
-            self.update_route_label()
-            self.set_mode("None")
-            self.render_map()
+            self.update_route_label(); self.set_mode("None"); self.render_map()
 
     def on_marker_click(self, marker):
         lat, lon = marker.position
@@ -478,9 +428,16 @@ class GISNetworkBuilder(ctk.CTk):
             line = LineString([(lon, lat) for lat, lon in self.current_drawing_coords])
             length_m = sum(geodesic(self.current_drawing_coords[i], self.current_drawing_coords[i + 1]).meters for i in
                            range(len(self.current_drawing_coords) - 1))
-            new_edge = {'geometry': line,
-                        'attributes': {'Name': f"Road_{len(self.edges) + 1}", 'Class': 'Unclassified', 'Speed': "30",
-                                       'Length_m': round(length_m, 2)}}
+
+            # NEW: Added Chainage and Direction underneath Name
+            new_edge = {'geometry': line, 'attributes': {
+                'Name': f"Road_{len(self.edges) + 1}",
+                'Chainage': "0+000",
+                'Direction': "Two-Way",
+                'Class': 'Unclassified',
+                'Speed': "30",
+                'Length_m': round(length_m, 2)
+            }}
             self.edges.append(new_edge);
             self.history.append(('add', 'line', new_edge));
             self.set_mode("None");
@@ -490,43 +447,28 @@ class GISNetworkBuilder(ctk.CTk):
         if len(self.current_drawing_coords) > 2:
             poly = Polygon([(lon, lat) for lat, lon in self.current_drawing_coords])
             new_poly = {'geometry': poly, 'attributes': {'Name': f"Poly_{len(self.polygons) + 1}", 'Zone': "General"}}
-            self.polygons.append(new_poly);
-            self.history.append(('add', 'polygon', new_poly));
-            self.set_mode("None");
-            self.render_map()
+            self.polygons.append(new_poly); self.history.append(('add', 'polygon', new_poly)); self.set_mode("None"); self.render_map()
 
     def undo_action(self, event=None):
         if not self.history: return
         action, type, item = self.history.pop()
         if action == 'add':
-            if type == 'point':
-                self.nodes.remove(item)
-            elif type == 'line':
-                self.edges.remove(item)
-            else:
-                self.polygons.remove(item)
+            if type == 'point': self.nodes.remove(item)
+            elif type == 'line': self.edges.remove(item)
+            else: self.polygons.remove(item)
         else:
-            if type == 'point':
-                self.nodes.append(item)
-            elif type == 'line':
-                self.edges.append(item)
-            else:
-                self.polygons.append(item)
+            if type == 'point': self.nodes.append(item)
+            elif type == 'line': self.edges.append(item)
+            else: self.polygons.append(item)
         self.render_map()
 
     def delete_item_callback(self, item, item_type):
-        if item_type == "Point":
-            self.nodes.remove(item)
-        elif item_type == "Line":
-            self.edges.remove(item)
-        elif item_type == "Polygon":
-            self.polygons.remove(item)
+        if item_type == "Point": self.nodes.remove(item)
+        elif item_type == "Line": self.edges.remove(item)
+        elif item_type == "Polygon": self.polygons.remove(item)
         self.history.append(('delete', item_type.lower(), item))
         self.render_map()
 
-    # ==========================================
-    # ROUTING & SPATIAL ANALYSIS
-    # ==========================================
     def update_route_label(self):
         s_text = f"{self.route_start_coord[0]:.3f}, {self.route_start_coord[1]:.3f}" if self.route_start_coord else "Not Set"
         e_text = f"{self.route_end_coord[0]:.3f}, {self.route_end_coord[1]:.3f}" if self.route_end_coord else "Not Set"
@@ -537,26 +479,18 @@ class GISNetworkBuilder(ctk.CTk):
         if self.route_path_visual: self.route_path_visual.delete()
         for p in self.isochrone_paths_visual: p.delete()
         if self.isochrone_poly_visual: self.isochrone_poly_visual.delete()
-        self.isochrone_paths_visual.clear()
-        self.isochrone_poly_visual = None
-        self.update_route_label()
-        self.render_map()
+        self.isochrone_paths_visual.clear(); self.isochrone_poly_visual = None
+        self.update_route_label(); self.render_map()
 
     def calculate_route(self):
         if not self.route_start_coord or not self.route_end_coord: return
         try:
-            route_coords, segment_count, total_time_sec = network_engine.calculate_shortest_path(self.edges,
-                                                                                                 self.route_start_coord,
-                                                                                                 self.route_end_coord)
+            route_coords, segment_count, total_time_sec = network_engine.calculate_shortest_path(self.edges, self.route_start_coord, self.route_end_coord)
             if self.route_path_visual: self.route_path_visual.delete()
             self.route_path_visual = self.map_widget.set_path(route_coords, color="#9b59b6", width=5)
-
-            mins = int(total_time_sec // 60)
-            secs = int(total_time_sec % 60)
-            messagebox.showinfo("Route Found!",
-                                f"Fastest path calculated across {segment_count} road segments.\n\nEstimated Travel Time: {mins} min {secs} sec.")
-        except ValueError as err:
-            messagebox.showerror("Routing Error", str(err))
+            mins = int(total_time_sec // 60); secs = int(total_time_sec % 60)
+            messagebox.showinfo("Route Found!", f"Estimated Travel Time: {mins} min {secs} sec.")
+        except ValueError as err: messagebox.showerror("Routing Error", str(err))
 
     def calculate_isochrone_area(self, start_coord):
         max_time_sec = askfloat("Service Area", "Enter maximum travel time budget (in SECONDS):", minvalue=1)
@@ -565,90 +499,67 @@ class GISNetworkBuilder(ctk.CTk):
             for p in self.isochrone_paths_visual: p.delete()
             if self.isochrone_poly_visual: self.isochrone_poly_visual.delete()
             self.isochrone_paths_visual.clear()
-
             reachable_paths, hull_coords = network_engine.calculate_isochrone(self.edges, start_coord, max_time_sec)
-
             for path_coords in reachable_paths:
                 visual = self.map_widget.set_path([(lat, lon) for lon, lat in path_coords], color="#00ffff", width=4)
                 self.isochrone_paths_visual.append(visual)
-            if hull_coords:
-                self.isochrone_poly_visual = self.map_widget.set_polygon(hull_coords, fill_color="#00ffff",
-                                                                         outline_color="#008080", border_width=2)
-
+            if hull_coords: self.isochrone_poly_visual = self.map_widget.set_polygon(hull_coords, fill_color="#00ffff", outline_color="#008080", border_width=2)
             mins = int(max_time_sec // 60)
-            messagebox.showinfo("Success",
-                                f"Service area calculated!\nFound {len(reachable_paths)} road segments reachable within {mins} minutes.")
-        except ValueError as err:
-            messagebox.showerror("Error", str(err))
+            messagebox.showinfo("Success", f"Found {len(reachable_paths)} road segments reachable within {mins} minutes.")
+        except ValueError as err: messagebox.showerror("Error", str(err))
 
     def run_geofence(self, target_poly):
         selected_nodes = [n for n in self.nodes if target_poly['geometry'].contains(n['geometry'])]
         selected_edges = [e for e in self.edges if target_poly['geometry'].intersects(e['geometry'])]
-        for n in selected_nodes: self.map_widget.set_marker(n['geometry'].y, n['geometry'].x,
-                                                            marker_color_circle="#f1c40f")
-        for e in selected_edges: self.map_widget.set_path([(y, x) for x, y in e['geometry'].coords], color="#f1c40f",
-                                                          width=4)
-        messagebox.showinfo("Geofence", f"Found {len(selected_nodes)} points and {len(selected_edges)} lines.");
-        self.set_mode("None")
+        for n in selected_nodes: self.map_widget.set_marker(n['geometry'].y, n['geometry'].x, marker_color_circle="#f1c40f")
+        for e in selected_edges: self.map_widget.set_path([(y, x) for x, y in e['geometry'].coords], color="#f1c40f", width=4)
+        messagebox.showinfo("Geofence", f"Found {len(selected_nodes)} points and {len(selected_edges)} lines."); self.set_mode("None")
 
     def generate_choropleth(self):
         attr = askstring("Choropleth", "Attribute:", initialvalue="Area_sqm")
         if not attr: return
         vals = []
         for p in self.polygons:
-            try:
-                vals.append(float(p['attributes'].get(attr, 0)))
-            except:
-                pass
+            try: vals.append(float(p['attributes'].get(attr, 0)))
+            except: pass
         if not vals: return
         mn, mx = min(vals), max(vals)
         for p in self.polygons:
             try:
                 v = float(p['attributes'].get(attr, 0))
                 ratio = (v - mn) / (mx - mn) if mx != mn else 0.5
-                p[
-                    'custom_color'] = f"#{int(224 - 216 * ratio):02x}{int(243 - 195 * ratio):02x}{int(255 - 148 * ratio):02x}"
-            except:
-                pass
+                p['custom_color'] = f"#{int(224 - 216 * ratio):02x}{int(243 - 195 * ratio):02x}{int(255 - 148 * ratio):02x}"
+            except: pass
         self.render_map()
 
-    # ==========================================
-    # DATA EXPORT & FILE I/O
-    # ==========================================
     def export_to_csv(self):
         all_data = []
         for n in self.nodes: all_data.append({'Type': 'Point', **n['attributes']})
         for e in self.edges: all_data.append({'Type': 'Line', **e['attributes']})
         for p in self.polygons: all_data.append({'Type': 'Polygon', **p['attributes']})
-
         if not all_data: return
         filepath = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv")])
-        if filepath:
-            pd.DataFrame(all_data).to_csv(filepath, index=False)
-            messagebox.showinfo("Success", "Attributes exported to CSV!")
+        if filepath: pd.DataFrame(all_data).to_csv(filepath, index=False); messagebox.showinfo("Success", "Exported!")
 
-    def open_attribute_table(self):
-        ui_datatable.AttributeTableWindow(self, self.nodes, self.edges, self.polygons, self.pan_to_feature)
+    def open_attribute_table(self): ui_datatable.AttributeTableWindow(self, self.nodes, self.edges, self.polygons, self.pan_to_feature)
+
+    def pan_to_feature(self, geom):
+        if geom.geom_type == 'Point': self.map_widget.set_position(geom.y, geom.x)
+        else: self.map_widget.set_position(geom.centroid.y, geom.centroid.x)
+        self.map_widget.set_zoom(17)
 
     def export_to_web(self):
-        try:
-            webbrowser.open(
-                f"file://{os.path.abspath(web_export.generate_html_map(self.nodes, self.edges, self.polygons))}")
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
+        try: webbrowser.open(f"file://{os.path.abspath(web_export.generate_html_map(self.nodes, self.edges, self.polygons))}")
+        except Exception as e: messagebox.showerror("Error", str(e))
 
     def save_network(self):
         os.makedirs("shapefiles", exist_ok=True)
         try:
-            if self.nodes: gpd.GeoDataFrame([{'geometry': n['geometry'], **n['attributes']} for n in self.nodes],
-                                            crs="EPSG:4326").to_file("shapefiles/Points.shp")
-            if self.edges: gpd.GeoDataFrame([{'geometry': e['geometry'], **e['attributes']} for e in self.edges],
-                                            crs="EPSG:4326").to_file("shapefiles/Lines.shp")
-            if self.polygons: gpd.GeoDataFrame([{'geometry': p['geometry'], **p['attributes']} for p in self.polygons],
-                                               crs="EPSG:4326").to_file("shapefiles/Polygons.shp")
+            if self.nodes: gpd.GeoDataFrame([{'geometry': n['geometry'], **n['attributes']} for n in self.nodes], crs="EPSG:4326").to_file("shapefiles/Points.shp")
+            if self.edges: gpd.GeoDataFrame([{'geometry': e['geometry'], **e['attributes']} for e in self.edges], crs="EPSG:4326").to_file("shapefiles/Lines.shp")
+            if self.polygons: gpd.GeoDataFrame([{'geometry': p['geometry'], **p['attributes']} for p in self.polygons], crs="EPSG:4326").to_file("shapefiles/Polygons.shp")
             messagebox.showinfo("Success", "Exported!")
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
+        except Exception as e: messagebox.showerror("Error", str(e))
 
     def load_file(self):
         fp = filedialog.askopenfilename(filetypes=[("All Supported", "*.shp *.kml *.geojson")])
@@ -656,18 +567,14 @@ class GISNetworkBuilder(ctk.CTk):
         try:
             pts, lns, polys = file_handler.load_spatial_file(fp)
             for p in pts: self.nodes.append({'geometry': p['geometry'], 'attributes': {'Name': p['name']}})
-            for l in lns: self.edges.append(
-                {'geometry': l['geometry'], 'attributes': {'Name': f"Line_{len(self.edges) + 1}", 'Speed': "30"}})
+            for l in lns: self.edges.append({'geometry': l['geometry'], 'attributes': {'Name': f"Line_{len(self.edges) + 1}", 'Speed': "30"}})
             for p in polys: self.polygons.append({'geometry': p['geometry'], 'attributes': {'Name': p['name']}})
             self.render_map()
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
+        except Exception as e: messagebox.showerror("Error", str(e))
 
     def clear_map(self):
         if messagebox.askyesno("Confirm", "Wipe all?"):
-            self.nodes, self.edges, self.polygons, self.history = [], [], [], []
-            self.clear_route();
-            self.render_map()
+            self.nodes, self.edges, self.polygons, self.history = [], [], [], []; self.clear_route(); self.render_map()
 
 
 if __name__ == "__main__":
