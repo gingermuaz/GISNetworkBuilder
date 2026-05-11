@@ -35,7 +35,7 @@ GISNetworkBuilder/
 ├── file_handler.py      # Spatial file I/O for SHP, KML, GeoJSON, and CSV
 ├── requirements.txt     # Python dependencies
 └── README.md            # Project documentation
-
+```
 ## 🛠️ Installation
 1. Clone the repo: `https://github.com/gingermuaz/GISNetworkBuilder.git`
 2. Install dependencies: `pip install -r requirements.txt`
