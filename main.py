@@ -363,6 +363,27 @@ class GISNetworkBuilder(tk.Tk):
                 self.map_widget.set_marker(n['geometry'].y, n['geometry'].x, text=label_text,
                                            command=self.on_marker_click)
 
+        # --- NEW: Draw Start and End Markers in Green and Red ---
+        if self.route_start_coord:
+            self.map_widget.set_marker(self.route_start_coord[1], self.route_start_coord[0], text="Start",
+                                       marker_color_circle="white", marker_color_outside="green")
+        if self.route_end_coord:
+            self.map_widget.set_marker(self.route_end_coord[1], self.route_end_coord[0], text="End",
+                                       marker_color_circle="white", marker_color_outside="red")
+        if self.show_lines.get():
+            for e in self.edges:
+                speed = float(e['attributes'].get('Speed', 30)) if str(e['attributes'].get('Speed', 30)).replace('.',
+                                                                                                                 '',
+                                                                                                                 1).isdigit() else 30
+                color = e.get('custom_color', ("green" if speed < 30 else "orange" if speed <= 60 else "red"))
+                self.map_widget.set_path([(y, x) for x, y in e['geometry'].coords], color=color, width=3,
+                                         command=self.on_path_click)
+        if self.show_points.get():
+            for n in self.nodes:
+                label_text = n['attributes'].get('Asset', n['attributes'].get('Name', 'Point'))
+                self.map_widget.set_marker(n['geometry'].y, n['geometry'].x, text=label_text,
+                                           command=self.on_marker_click)
+
     def map_click(self, coords):
         lat, lon = self.get_snapped_coord(coords[0], coords[1])
         if self.current_mode == "Point":
@@ -384,8 +405,9 @@ class GISNetworkBuilder(tk.Tk):
                 self.route_end_coord = (lon, lat)
             else:
                 self.calculate_isochrone_area((lon, lat))
-            self.update_route_label();
+            self.update_route_label()
             self.set_mode("None")
+            self.render_map()  # <--- NEW: Force map to redraw to show the green/red markers
 
     def on_marker_click(self, marker):
         lat, lon = marker.position
@@ -480,6 +502,7 @@ class GISNetworkBuilder(tk.Tk):
         self.isochrone_paths_visual.clear()
         self.isochrone_poly_visual = None
         self.update_route_label()
+        self.render_map()  # <--- NEW: Force map to redraw to remove the green/red markers
 
     def calculate_route(self):
         if not self.route_start_coord or not self.route_end_coord: return
