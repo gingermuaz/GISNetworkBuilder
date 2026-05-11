@@ -1,13 +1,32 @@
-# GIS Network Builder Pro
+# 🌍 GIS Network Builder Pro
 
-A modular desktop GIS application built with Python. This tool allows users to digitize points, lines, and polygons, perform network routing, and generate interactive web maps.
+GIS Network Builder Pro is a modular desktop GIS workstation built with Python. It bridges the gap between desktop spatial engineering and web-based data visualisation, allowing users to digitise, analyse, and export complex geographic networks with ease.
 
 ## 🚀 Features
-* **Drawing Tools:** Digitise spatial data with dynamic attributes.
-* **Network Analysis:** Shortest path routing and Service Area (Isochrone) calculation.
-* **Spatial Analysis:** Geofencing (Select by Location) logic.
-* **Data Viz:** Automatic Choropleth mapping and Heatmap generation.
-* **Web Export:** Compile your network into a standalone Leaflet.js HTML map.
+🛠️ Advanced Digitising Tools
+Dynamic Drawing: Digitise Points, Lines, and Polygons with custom data attributes.
+
+Intelligent Snapping: Use the Snapping Tolerance slider to "magnetise" vertices to existing nodes for perfectly connected networks.
+
+Undo/Redo Support: Built-in history stack allows you to reverse accidental edits with Ctrl+Z.
+
+Custom Styling: Use the integrated color picker to style individual shapes on the fly.
+
+🧠 Network & Spatial Analysis
+Shortest Path (Dijkstra): Calculate the most efficient route between any two points in your network.
+
+Service Areas (Isochrones): Visualize reachability by calculating coverage zones based on a travel "budget" or distance.
+
+Geofencing: Run "Select by Location" queries to find all points and lines interacting with a specific polygon.
+
+📊 Data Visualization & Export
+Attribute Table: A spreadsheet-style view to manage all spatial data, featuring Double-Click to Pan functionality.
+
+Choropleth Mapping: Automatically color-code polygons based on numeric values (like Area).
+
+Web Map Export: Compile your entire network into an interactive Leaflet.js HTML map featuring Point Density Heatmaps.
+
+Flexible I/O: Save and load standard Shapefiles (.shp) or export data attributes to CSV for use in Excel.
 
 ## 🛠️ Installation
 1. Clone the repo: `https://github.com/gingermuaz/GISNetworkBuilder.git`
