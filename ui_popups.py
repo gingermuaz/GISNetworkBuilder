@@ -58,8 +58,11 @@ class DynamicEditorPopup(tk.Toplevel):
         # --- NEW: DROPDOWN LOGIC ---
         if self.item_type == "Point" and key == "Asset":
             # Preset Council Assets
-            val_ent = ttk.Combobox(self.scrollable_frame, width=15,
-                                   values=["Streetlight", "Pothole", "Traffic Sign", "Bench", "Drain", "Other"])
+            val_ent = ttk.Combobox(self.scrollable_frame, width=18, values=[
+                "Streetlight", "Pothole", "Traffic Sign", "Bench", "Drain",
+                "Tree", "Bus Stop", "Litter Bin", "Bollard", "Graffiti",
+                "Manhole Cover", "Public Toilet", "Parking Meter", "Other"
+            ])
             val_ent.set(str(val))
         elif self.item_type == "Line" and key == "Class":
             # Preset Road Classes

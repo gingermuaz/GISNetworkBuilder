@@ -46,8 +46,8 @@ class GISNetworkBuilder(tk.Tk):
         notebook.pack(fill="both", expand=True)
 
         tab_draw, tab_tools, tab_layers = tk.Frame(notebook), tk.Frame(notebook), tk.Frame(notebook)
-        notebook.add(tab_draw, text="Draw")
-        notebook.add(tab_tools, text="Tools")
+        notebook.add(tab_draw, text="Draw");
+        notebook.add(tab_tools, text="Tools");
         notebook.add(tab_layers, text="Layers/Data")
 
         self._setup_draw_tab(tab_draw)
@@ -69,7 +69,7 @@ class GISNetworkBuilder(tk.Tk):
         self.map_widget = tkintermapview.TkinterMapView(map_container, corner_radius=0, database_path=db_path)
         self.map_widget.pack(side="bottom", fill="both", expand=True)
         self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)
-        self.map_widget.set_position(52.4862, -1.8904)
+        self.map_widget.set_position(52.4862, -1.8904);
         self.map_widget.set_zoom(15)
         self.map_widget.add_left_click_map_command(self.map_click)
 
@@ -92,13 +92,9 @@ class GISNetworkBuilder(tk.Tk):
             pady=10)
         tk.Button(parent, text="Calculate Service Area", command=lambda: self.set_mode("SetIsochrone"), width=20,
                   bg="thistle").pack(pady=5)
-
-        # This is the button that triggers the error if the clear_route function is missing
         tk.Button(parent, text="Clear Route", command=self.clear_route, width=20).pack(pady=5)
-
-        self.lbl_route = tk.Label(parent, text="Start: Not Set\nEnd: Not Set", fg="purple")
+        self.lbl_route = tk.Label(parent, text="Start: Not Set\nEnd: Not Set", fg="purple");
         self.lbl_route.pack(pady=10)
-
         tk.Frame(parent, height=2, bg="gray").pack(fill="x", padx=20, pady=10)
         tk.Label(parent, text="Spatial Analysis", font=("Arial", 10, "bold")).pack(pady=5)
         tk.Button(parent, text="Select by Polygon", command=lambda: self.set_mode("Geofence"), width=20,
@@ -132,13 +128,94 @@ class GISNetworkBuilder(tk.Tk):
 
         tk.Frame(parent, height=20).pack()
         tk.Label(parent, text="File I/O", font=("Arial", 10, "bold")).pack(pady=5)
+
+        # NEW: OpenStreetMap Import Button
+        tk.Button(parent, text="🌍 Import OSM Data", command=self.import_osm_data, width=20, bg="#ffebcd").pack(pady=5)
+
         tk.Button(parent, text="📂 Load File", command=self.load_file, width=20, bg="#ffe5b4").pack(pady=5)
         tk.Button(parent, text="💾 Save SHP", command=self.save_network, width=20, bg="lightgreen").pack(pady=5)
         tk.Button(parent, text="🗑️ Clear Map", command=self.clear_map, width=20, bg="#ffcccc").pack(pady=5)
 
     # ==========================================
-    # LOGIC: QoL FEATURES (CSV & SNAPPING)
+    # LOGIC: QoL FEATURES & IMPORTS
     # ==========================================
+    def import_osm_data(self):
+        # NEW: Added a strong warning about large cities to the prompt
+        prompt_msg = (
+            "Enter a small local neighborhood (e.g., 'Moseley, Birmingham'):\n\n"
+            "⚠️ WARNING: Stick to local neighborhoods! Searching for massive "
+            "cities like 'London' will try to download millions of roads and crash your computer."
+        )
+        place_name = askstring("OSM Import", prompt_msg)
+        if not place_name: return
+
+        try:
+            import osmnx as ox
+            self.lbl_status.config(text="Downloading OSM Data...")
+            self.update()  # Force UI to show the loading message
+
+            # --- THE FIX: Use graph_from_address with a 1500m radius instead of graph_from_place ---
+            G = ox.graph_from_address(place_name, dist=1500, network_type='drive')
+
+            # 1. Convert OSM Nodes to our standard Points
+            node_map = {}
+            for osmid, data in G.nodes(data=True):
+                lat, lon = data['y'], data['x']
+                new_node = {
+                    'NodeID': len(self.nodes) + 1,
+                    'geometry': Point(lon, lat),
+                    'attributes': {'Name': f"Node_{osmid}", 'Asset': 'Intersection'}
+                }
+                self.nodes.append(new_node)
+                node_map[osmid] = new_node
+
+            # 2. Convert OSM Edges to our standard Lines
+            for u, v, key, data in G.edges(keys=True, data=True):
+                if 'geometry' in data:
+                    line_geom = data['geometry']
+                else:
+                    line_geom = LineString([node_map[u]['geometry'], node_map[v]['geometry']])
+
+                # Clean up dirty OSM data fields
+                name = data.get('name', 'Unnamed Road')
+                if isinstance(name, list): name = name[0]
+                highway = data.get('highway', 'Unclassified')
+                if isinstance(highway, list): highway = highway[0]
+                maxspeed = data.get('maxspeed', '30')
+                if isinstance(maxspeed, list): maxspeed = maxspeed[0]
+
+                # Strip out ' mph' text so routing math works
+                clean_speed = str(maxspeed).replace(" mph", "").replace(" km/h", "")
+
+                new_edge = {
+                    'EdgeID': len(self.edges) + 1,
+                    'geometry': line_geom,
+                    'attributes': {
+                        'Name': name,
+                        'Class': highway,
+                        'Speed': clean_speed,
+                        'Length_m': round(float(data.get('length', 0.0)), 2)
+                    }
+                }
+                self.edges.append(new_edge)
+
+            # 3. Center map on the new data
+            if self.nodes:
+                self.map_widget.set_position(self.nodes[-1]['geometry'].y, self.nodes[-1]['geometry'].x)
+                self.map_widget.set_zoom(14)
+
+            self.lbl_status.config(text="Mode: None")
+            self.render_map()
+            messagebox.showinfo("Success",
+                                f"Imported {len(node_map)} intersections and {len(G.edges)} roads within 1.5km of {place_name}!")
+
+        except ImportError:
+            messagebox.showerror("Missing Library", "OSMnx is not installed.\nPlease run: pip install osmnx")
+            self.lbl_status.config(text="Mode: None")
+        except Exception as e:
+            self.lbl_status.config(text="Mode: None")
+            messagebox.showerror("OSM Import Error", f"Could not fetch data for '{place_name}'.\n\nError: {e}")
+
     def export_to_csv(self):
         all_data = []
         for n in self.nodes: all_data.append({'Type': 'Point', **n['attributes']})
@@ -172,7 +249,7 @@ class GISNetworkBuilder(tk.Tk):
         try:
             loc = self.geocoder.geocode(address)
             if loc:
-                self.map_widget.set_position(loc.latitude, loc.longitude)
+                self.map_widget.set_position(loc.latitude, loc.longitude);
                 self.map_widget.set_zoom(17)
                 self.map_widget.set_marker(loc.latitude, loc.longitude, text=address)
             else:
@@ -181,31 +258,24 @@ class GISNetworkBuilder(tk.Tk):
             messagebox.showerror("Error", "Geocoding failed.")
 
     def render_map(self):
-        self.map_widget.delete_all_marker()
-        self.map_widget.delete_all_path()
+        self.map_widget.delete_all_marker();
+        self.map_widget.delete_all_path();
         self.map_widget.delete_all_polygon()
-
         if self.show_polygons.get():
             for p in self.polygons:
-                coords = [(y, x) for x, y in p['geometry'].exterior.coords]
-                fill_col = p.get('custom_color', "#5288ae")
-                self.map_widget.set_polygon(coords, fill_color=fill_col, outline_color="navy", border_width=2,
-                                            command=self.on_polygon_click)
-
+                self.map_widget.set_polygon([(y, x) for x, y in p['geometry'].exterior.coords],
+                                            fill_color=p.get('custom_color', "#5288ae"), outline_color="navy",
+                                            border_width=2, command=self.on_polygon_click)
         if self.show_lines.get():
             for e in self.edges:
-                coords = [(y, x) for x, y in e['geometry'].coords]
-                try:
-                    speed = float(e['attributes'].get('Speed', 30))
-                except ValueError:
-                    speed = 30
-                # Keep color coding by speed!
+                speed = float(e['attributes'].get('Speed', 30)) if str(e['attributes'].get('Speed', 30)).replace('.',
+                                                                                                                 '',
+                                                                                                                 1).isdigit() else 30
                 color = e.get('custom_color', ("green" if speed < 30 else "orange" if speed <= 60 else "red"))
-                self.map_widget.set_path(coords, color=color, width=3, command=self.on_path_click)
-
+                self.map_widget.set_path([(y, x) for x, y in e['geometry'].coords], color=color, width=3,
+                                         command=self.on_path_click)
         if self.show_points.get():
             for n in self.nodes:
-                # NEW: Prioritize displaying the Asset type on the map label
                 label_text = n['attributes'].get('Asset', n['attributes'].get('Name', 'Point'))
                 self.map_widget.set_marker(n['geometry'].y, n['geometry'].x, text=label_text,
                                            command=self.on_marker_click)
@@ -213,30 +283,25 @@ class GISNetworkBuilder(tk.Tk):
     def map_click(self, coords):
         lat, lon = self.get_snapped_coord(coords[0], coords[1])
         if self.current_mode == "Point":
-            # NEW: Add default Asset type instead of just Name
-            new_node = {'NodeID': len(self.nodes) + 1, 'geometry': Point(lon, lat),
+            new_node = {'geometry': Point(lon, lat),
                         'attributes': {'Name': f"P{len(self.nodes) + 1}", 'Asset': 'Streetlight'}}
-            self.nodes.append(new_node)
-            self.history.append(('add', 'point', new_node))
-            self.set_mode("None")
+            self.nodes.append(new_node);
+            self.history.append(('add', 'point', new_node));
+            self.set_mode("None");
             self.render_map()
-
         elif self.current_mode in ["Line", "Polygon"]:
             self.current_drawing_coords.append((lat, lon))
-            self.map_widget.set_marker(lat, lon, marker_color_circle="blue", marker_color_outside="lightblue")
-            if len(self.current_drawing_coords) > 1:
-                self.map_widget.set_path(self.current_drawing_coords, color="blue", width=2)
-
-        elif self.current_mode in ["SetStart", "SetEnd"]:
+            self.map_widget.set_marker(lat, lon, marker_color_circle="blue")
+            if len(self.current_drawing_coords) > 1: self.map_widget.set_path(self.current_drawing_coords, color="blue",
+                                                                              width=2)
+        elif self.current_mode in ["SetStart", "SetEnd", "SetIsochrone"]:
             if self.current_mode == "SetStart":
                 self.route_start_coord = (lon, lat)
-            else:
+            elif self.current_mode == "SetEnd":
                 self.route_end_coord = (lon, lat)
-            self.update_route_label()
-            self.set_mode("None")
-
-        elif self.current_mode == "SetIsochrone":
-            self.calculate_isochrone_area((lon, lat))
+            else:
+                self.calculate_isochrone_area((lon, lat))
+            self.update_route_label();
             self.set_mode("None")
 
     def on_marker_click(self, marker):
@@ -267,17 +332,15 @@ class GISNetworkBuilder(tk.Tk):
 
     def finish_line(self):
         if len(self.current_drawing_coords) > 1:
-            coords = self.current_drawing_coords
-            line = LineString([(lon, lat) for lat, lon in coords])
-            length_m = sum(geodesic(coords[i], coords[i + 1]).meters for i in range(len(coords) - 1))
-
-            # NEW: Added 'Class' attribute
-            new_edge = {'EdgeID': len(self.edges) + 1, 'geometry': line,
+            line = LineString([(lon, lat) for lat, lon in self.current_drawing_coords])
+            length_m = sum(geodesic(self.current_drawing_coords[i], self.current_drawing_coords[i + 1]).meters for i in
+                           range(len(self.current_drawing_coords) - 1))
+            new_edge = {'geometry': line,
                         'attributes': {'Name': f"Road_{len(self.edges) + 1}", 'Class': 'Unclassified', 'Speed': "30",
                                        'Length_m': round(length_m, 2)}}
-            self.edges.append(new_edge)
-            self.history.append(('add', 'line', new_edge))
-            self.set_mode("None")
+            self.edges.append(new_edge);
+            self.history.append(('add', 'line', new_edge));
+            self.set_mode("None");
             self.render_map()
 
     def finish_polygon(self):
@@ -308,6 +371,16 @@ class GISNetworkBuilder(tk.Tk):
                 self.polygons.append(item)
         self.render_map()
 
+    def delete_item_callback(self, item, item_type):
+        if item_type == "Point":
+            self.nodes.remove(item)
+        elif item_type == "Line":
+            self.edges.remove(item)
+        elif item_type == "Polygon":
+            self.polygons.remove(item)
+        self.history.append(('delete', item_type.lower(), item))
+        self.render_map()
+
     # ==========================================
     # ROUTING & SPATIAL ANALYSIS
     # ==========================================
@@ -328,24 +401,20 @@ class GISNetworkBuilder(tk.Tk):
     def calculate_route(self):
         if not self.route_start_coord or not self.route_end_coord: return
         try:
-            # Unpack the new total_time_sec variable
             route_coords, segment_count, total_time_sec = network_engine.calculate_shortest_path(self.edges,
                                                                                                  self.route_start_coord,
                                                                                                  self.route_end_coord)
             if self.route_path_visual: self.route_path_visual.delete()
             self.route_path_visual = self.map_widget.set_path(route_coords, color="magenta", width=5)
 
-            # Format time
             mins = int(total_time_sec // 60)
             secs = int(total_time_sec % 60)
-
             messagebox.showinfo("Route Found!",
                                 f"Fastest path calculated across {segment_count} road segments.\n\nEstimated Travel Time: {mins} min {secs} sec.")
         except ValueError as err:
             messagebox.showerror("Routing Error", str(err))
 
     def calculate_isochrone_area(self, start_coord):
-        # Ask for budget in Seconds (e.g., a 2-minute drive = 120 seconds)
         max_time_sec = askfloat("Service Area", "Enter maximum travel time budget (in SECONDS):", minvalue=1)
         if not max_time_sec: return
         try:
@@ -432,7 +501,7 @@ class GISNetworkBuilder(tk.Tk):
             pts, lns, polys = file_handler.load_spatial_file(fp)
             for p in pts: self.nodes.append({'geometry': p['geometry'], 'attributes': {'Name': p['name']}})
             for l in lns: self.edges.append(
-                {'geometry': l['geometry'], 'attributes': {'Name': f"Line_{len(self.edges) + 1}", 'Speed': "50"}})
+                {'geometry': l['geometry'], 'attributes': {'Name': f"Line_{len(self.edges) + 1}", 'Speed': "30"}})
             for p in polys: self.polygons.append({'geometry': p['geometry'], 'attributes': {'Name': p['name']}})
             self.render_map()
         except Exception as e:
