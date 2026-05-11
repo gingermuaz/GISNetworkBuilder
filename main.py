@@ -181,48 +181,62 @@ class GISNetworkBuilder(tk.Tk):
             messagebox.showerror("Error", "Geocoding failed.")
 
     def render_map(self):
-        self.map_widget.delete_all_marker();
-        self.map_widget.delete_all_path();
+        self.map_widget.delete_all_marker()
+        self.map_widget.delete_all_path()
         self.map_widget.delete_all_polygon()
+
         if self.show_polygons.get():
             for p in self.polygons:
-                self.map_widget.set_polygon([(y, x) for x, y in p['geometry'].exterior.coords],
-                                            fill_color=p.get('custom_color', "#5288ae"), outline_color="navy",
-                                            border_width=2, command=self.on_polygon_click)
+                coords = [(y, x) for x, y in p['geometry'].exterior.coords]
+                fill_col = p.get('custom_color', "#5288ae")
+                self.map_widget.set_polygon(coords, fill_color=fill_col, outline_color="navy", border_width=2,
+                                            command=self.on_polygon_click)
+
         if self.show_lines.get():
             for e in self.edges:
-                speed = float(e['attributes'].get('Speed', 50)) if str(e['attributes'].get('Speed', 50)).replace('.',
-                                                                                                                 '',
-                                                                                                                 1).isdigit() else 50
+                coords = [(y, x) for x, y in e['geometry'].coords]
+                try:
+                    speed = float(e['attributes'].get('Speed', 30))
+                except ValueError:
+                    speed = 30
+                # Keep color coding by speed!
                 color = e.get('custom_color', ("green" if speed < 30 else "orange" if speed <= 60 else "red"))
-                self.map_widget.set_path([(y, x) for x, y in e['geometry'].coords], color=color, width=3,
-                                         command=self.on_path_click)
+                self.map_widget.set_path(coords, color=color, width=3, command=self.on_path_click)
+
         if self.show_points.get():
             for n in self.nodes:
-                self.map_widget.set_marker(n['geometry'].y, n['geometry'].x, text=n['attributes'].get('Name', 'Point'),
+                # NEW: Prioritize displaying the Asset type on the map label
+                label_text = n['attributes'].get('Asset', n['attributes'].get('Name', 'Point'))
+                self.map_widget.set_marker(n['geometry'].y, n['geometry'].x, text=label_text,
                                            command=self.on_marker_click)
 
     def map_click(self, coords):
         lat, lon = self.get_snapped_coord(coords[0], coords[1])
         if self.current_mode == "Point":
-            new_node = {'geometry': Point(lon, lat), 'attributes': {'Name': f"P{len(self.nodes) + 1}"}}
-            self.nodes.append(new_node);
-            self.history.append(('add', 'point', new_node));
-            self.set_mode("None");
+            # NEW: Add default Asset type instead of just Name
+            new_node = {'NodeID': len(self.nodes) + 1, 'geometry': Point(lon, lat),
+                        'attributes': {'Name': f"P{len(self.nodes) + 1}", 'Asset': 'Streetlight'}}
+            self.nodes.append(new_node)
+            self.history.append(('add', 'point', new_node))
+            self.set_mode("None")
             self.render_map()
+
         elif self.current_mode in ["Line", "Polygon"]:
             self.current_drawing_coords.append((lat, lon))
-            self.map_widget.set_marker(lat, lon, marker_color_circle="blue")
-            if len(self.current_drawing_coords) > 1: self.map_widget.set_path(self.current_drawing_coords, color="blue",
-                                                                              width=2)
-        elif self.current_mode in ["SetStart", "SetEnd", "SetIsochrone"]:
+            self.map_widget.set_marker(lat, lon, marker_color_circle="blue", marker_color_outside="lightblue")
+            if len(self.current_drawing_coords) > 1:
+                self.map_widget.set_path(self.current_drawing_coords, color="blue", width=2)
+
+        elif self.current_mode in ["SetStart", "SetEnd"]:
             if self.current_mode == "SetStart":
                 self.route_start_coord = (lon, lat)
-            elif self.current_mode == "SetEnd":
-                self.route_end_coord = (lon, lat)
             else:
-                self.calculate_isochrone_area((lon, lat))
-            self.update_route_label();
+                self.route_end_coord = (lon, lat)
+            self.update_route_label()
+            self.set_mode("None")
+
+        elif self.current_mode == "SetIsochrone":
+            self.calculate_isochrone_area((lon, lat))
             self.set_mode("None")
 
     def on_marker_click(self, marker):
@@ -256,9 +270,10 @@ class GISNetworkBuilder(tk.Tk):
             coords = self.current_drawing_coords
             line = LineString([(lon, lat) for lat, lon in coords])
             length_m = sum(geodesic(coords[i], coords[i + 1]).meters for i in range(len(coords) - 1))
-            # Changed Speed default to 30
+
+            # NEW: Added 'Class' attribute
             new_edge = {'EdgeID': len(self.edges) + 1, 'geometry': line,
-                        'attributes': {'Name': f"Road_{len(self.edges) + 1}", 'Speed': "30",
+                        'attributes': {'Name': f"Road_{len(self.edges) + 1}", 'Class': 'Unclassified', 'Speed': "30",
                                        'Length_m': round(length_m, 2)}}
             self.edges.append(new_edge)
             self.history.append(('add', 'line', new_edge))

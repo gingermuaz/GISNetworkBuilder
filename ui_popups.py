@@ -36,10 +36,8 @@ class DynamicEditorPopup(tk.Toplevel):
         btn_frame = tk.Frame(self)
         btn_frame.pack(pady=10)
 
-        # NEW: Color Picker Button
         tk.Button(btn_frame, text="🎨 Pick Custom Color", command=self._pick_color, bg="#f0f8ff").pack(side="top",
                                                                                                       pady=5, fill="x")
-
         tk.Button(btn_frame, text="+ Add Field", command=self._add_blank_field, bg="lightyellow", width=20).pack(
             side="top", pady=5)
         tk.Button(btn_frame, text="Save Data", command=self._save_changes, bg="lightgreen", width=20).pack(side="top",
@@ -57,8 +55,22 @@ class DynamicEditorPopup(tk.Toplevel):
         key_ent.insert(0, key)
         key_ent.grid(row=self.row_counter, column=0, padx=5, pady=2, sticky="e")
 
-        val_ent = tk.Entry(self.scrollable_frame, width=18)
-        val_ent.insert(0, str(val))
+        # --- NEW: DROPDOWN LOGIC ---
+        if self.item_type == "Point" and key == "Asset":
+            # Preset Council Assets
+            val_ent = ttk.Combobox(self.scrollable_frame, width=15,
+                                   values=["Streetlight", "Pothole", "Traffic Sign", "Bench", "Drain", "Other"])
+            val_ent.set(str(val))
+        elif self.item_type == "Line" and key == "Class":
+            # Preset Road Classes
+            val_ent = ttk.Combobox(self.scrollable_frame, width=15,
+                                   values=["A-Road", "B-Road", "C-Road", "Unclassified", "Footpath"])
+            val_ent.set(str(val))
+        else:
+            # Standard Text Box for everything else
+            val_ent = tk.Entry(self.scrollable_frame, width=18)
+            val_ent.insert(0, str(val))
+
         val_ent.grid(row=self.row_counter, column=1, padx=5, pady=2)
 
         self.entries[key_ent] = val_ent
