@@ -23,15 +23,11 @@ GIS Network Builder Pro is a modular desktop GIS workstation built with Python. 
 ## 🏗️ Project Architecture
 The project follows a professional modular structure to separate UI logic from heavy mathematical engines:
 
-- main.py: The core application and UI coordinator.
-
-- network_engine.py: Handles graph theory and spatial mathematics (NetworkX).
-
-- web_export.py: Manages HTML/Folium map generation and heatmaps.
-
-- ui_datatable.py & ui_popups.py: Dedicated UI modules for data management.
-
-- file_handler.py: Manages spatial file I/O for SHP, KML, and GeoJSON.
+   ```bash main.py: The core application and UI coordinator.
+   ```bash network_engine.py: Handles graph theory and spatial mathematics (NetworkX).
+   ```bash web_export.py: Manages HTML/Folium map generation and heatmaps.
+   ```bash ui_datatable.py & ui_popups.py: Dedicated UI modules for data management.
+   ```bash file_handler.py: Manages spatial file I/O for SHP, KML, and GeoJSON.
 
 ## 🛠️ Installation
 1. Clone the repo: `https://github.com/gingermuaz/GISNetworkBuilder.git`
