@@ -10,6 +10,6 @@ A modular desktop GIS application built with Python. This tool allows users to d
 * **Web Export:** Compile your network into a standalone Leaflet.js HTML map.
 
 ## 🛠️ Installation
-1. Clone the repo: `git clone https://github.com/YOUR_USERNAME/GISNetworkBuilder.git`
+1. Clone the repo: `https://github.com/gingermuaz/GISNetworkBuilder.git`
 2. Install dependencies: `pip install -r requirements.txt`
 3. Run the app: `python main.py`
