@@ -1,24 +1,24 @@
-# 🌍 GIS Network Builder Pro
+# 🌍 GIS Network Builder
 
-GIS Network Builder Pro is a modular desktop GIS workstation built with Python. It bridges the gap between desktop spatial engineering and web-based data visualisation, allowing users to digitise, analyse, and export complex geographic networks with ease.
+GIS Network Builder is a modular, high-performance desktop GIS workstation built with Python. It is specifically designed for councils, local authorities, and civil engineers to digitise urban assets, model road networks, and perform advanced spatial analysis.
 
 ## 🚀 Features
-🛠️ Advanced Digitising Tools
-1) Dynamic Drawing: Digitise Points, Lines, and Polygons with custom data attributes.
-2) Intelligent Snapping: Use the Snapping Tolerance slider to "magnetise" vertices to existing nodes for perfectly connected networks.
-3) Undo/Redo Support: Built-in history stack allows you to reverse accidental edits with Ctrl+Z.
-4) Custom Styling: Use the integrated colour picker to style individual shapes on the fly.
+🛠️ Advanced Digitising & UI
+1) Modern Enterprise UI: Fully overhauled with CustomTkinter, featuring native Dark Mode and rounded, high-end design elements.
+2) Automated Data Import: Instantly pull real-world street grids from OpenStreetMap with automatic road classification and speed limits.
+3) Standardised Asset Management: Integrated dropdowns for rapid, error-free entry of standard council assets (Potholes, Streetlights, Manholes) and road directions.
+4) Intelligent Snapping: Adjustable tolerance slider to ensure perfect connectivity between vertices.
 
 🧠 Network & Spatial Analysis
-1) Shortest Path (Dijkstra): Calculate the most efficient route between any two points in your network.
-2) Service Areas (Isochrones): Visualise reachability by calculating coverage zones based on a travel "budget" or distance.
-3) Geofencing: Run "Select by Location" queries to find all points and lines interacting with a specific polygon.
+1) Real-World Routing: Calculates the fastest path using travel time (seconds) rather than just physical distance.
+2) Time-Based Isochrones: Visualise service coverage areas based on a precise travel time budget (e.g., 5-minute response zones).
+3) Spatial Geofencing: Run "Select by Location" queries to identify all assets or roads interacting within a specific polygon boundary.
 
 📊 Data Visualization & Export
-1) Attribute Table: A spreadsheet-style view to manage all spatial data, featuring Double-Click to Pan functionality.
-2) Choropleth Mapping: Automatically colour-code polygons based on numeric values (like Area).
-3) Web Map Export: Compile your entire network into an interactive Leaflet.js HTML map featuring Point Density Heatmaps.
-4) Flexible I/O: Save and load standard Shapefiles (.shp) or export data attributes to CSV for use in Excel.
+1) Custom Map Layers: Dynamically switch between Google Maps, Satellite, Hybrid, OpenStreetMap, and Dark Mode base maps.
+2) Interactive Web Export: Generate standalone HTML maps featuring interactive popups and Point Density Heatmaps.
+3) Flexible Workspaces: Save entire sessions, including custom styles and attributes, to JSON Project Workspaces.
+4) Industry Standard I/O: Export to Shapefile (.shp) for CAD/GIS or CSV for Microsoft Excel.
 
 ## 📖 Usage Guide
 1. __Drawing and Editing
@@ -39,6 +39,16 @@ Search__: Type any address or landmark into the search bar above the map and pre
 Attribute Table: Open the Attribute Table to see all data at once. Double-click a row to zoom the map directly to that feature.
 
 ## 🏗️ Project Architecture
+
+GUI Framework: CustomTkinter.
+
+Map Widget: TkinterMapView.
+
+Spatial Logic: Shapely & GeoPandas.
+
+Network Engine: NetworkX (Graph Theory).
+
+API Integrations: OpenStreetMap & Nominatim via OSMnx and Geopy.
 
 The project follows a modular structure that separates the user interface from spatial processing, file handling, and export logic.
 
