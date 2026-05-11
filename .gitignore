@@ -1,0 +1,17 @@
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local Database & Shapefiles
+map_cache.db
+shapefiles/
+*.html
+
+# IDE files
+.idea/
+.vscode/
