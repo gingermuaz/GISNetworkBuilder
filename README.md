@@ -4,21 +4,21 @@ GIS Network Builder Pro is a modular, high-performance desktop GIS workstation b
 
 ## 🚀 Features
 🛠️ Advanced Digitising & UI
-__1) Modern Enterprise UI__: Fully overhauled with CustomTkinter, featuring native Dark Mode and rounded, high-end design elements.
-__2) Automated Data Import__: Instantly pull real-world street grids from OpenStreetMap with automatic road classification and speed limits.
-__3) Standardised Asset Management__: Integrated dropdowns for rapid, error-free entry of standard council assets (Potholes, Streetlights, Manholes) and road directions.
-__4) Intelligent Snapping__: Adjustable tolerance slider to ensure perfect connectivity between vertices.
+1) Modern Enterprise UI: Fully overhauled with CustomTkinter, featuring native Dark Mode and rounded, high-end design elements.
+2) Automated Data Import: Instantly pull real-world street grids from OpenStreetMap with automatic road classification and speed limits.
+3) Standardised Asset Management: Integrated dropdowns for rapid, error-free entry of standard council assets (Potholes, Streetlights, Manholes) and road directions.
+4) Intelligent Snapping: Adjustable tolerance slider to ensure perfect connectivity between vertices.
 
 🧠 Network & Spatial Analysis
-__1) Real-World Routing__: Calculates the fastest path using travel time (seconds) rather than just physical distance.
-__2) Time-Based Isochrones__: Visualise service coverage areas based on a precise travel time budget (e.g., 5-minute response zones).
-__3) Spatial Geofencing__: Run "Select by Location" queries to identify all assets or roads interacting within a specific polygon boundary.
+1) Real-World Routing: Calculates the fastest path using travel time (seconds) rather than just physical distance.
+2) Time-Based Isochrones: Visualise service coverage areas based on a precise travel time budget (e.g., 5-minute response zones).
+3) Spatial Geofencing: Run "Select by Location" queries to identify all assets or roads interacting within a specific polygon boundary.
 
 📊 Data Visualization & Export
-__1) Custom Map Layers__: Dynamically switch between Google Maps, Satellite, Hybrid, OpenStreetMap, and Dark Mode base maps.
-__2) Interactive Web Export__: Generate standalone HTML maps featuring interactive popups and Point Density Heatmaps.
-__3) Flexible Workspaces__: Save entire sessions, including custom styles and attributes, to JSON Project Workspaces.
-__4) Industry Standard I/O__: Export to Shapefile (.shp) for CAD/GIS or CSV for Microsoft Excel.
+1) Custom Map Layers: Dynamically switch between Google Maps, Satellite, Hybrid, OpenStreetMap, and Dark Mode base maps.
+2) Interactive Web Export: Generate standalone HTML maps featuring interactive popups and Point Density Heatmaps.
+3) Flexible Workspaces: Save entire sessions, including custom styles and attributes, to JSON Project Workspaces.
+4) Industry Standard I/O: Export to Shapefile (.shp) for CAD/GIS or CSV for Microsoft Excel.
 
 ## 📖 Usage Guide
 1. __Drawing and Editing
