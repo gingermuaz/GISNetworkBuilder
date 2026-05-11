@@ -24,3 +24,8 @@ GIS Network Builder Pro is a modular desktop GIS workstation built with Python. 
 1. Clone the repo: `https://github.com/gingermuaz/GISNetworkBuilder.git`
 2. Install dependencies: `pip install -r requirements.txt`
 3. Run the app: `python main.py`
+
+## 🛠️ Installation
+1. Clone the repo: `https://github.com/gingermuaz/GISNetworkBuilder.git`
+2. Install dependencies: `pip install -r requirements.txt`
+3. Run the app: `python main.py`
