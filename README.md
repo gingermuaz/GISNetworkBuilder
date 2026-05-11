@@ -1,6 +1,6 @@
-# 🌍 GIS Network Builder Pro
+# 🌍 GIS Network Builder
 
-GIS Network Builder Pro is a modular, high-performance desktop GIS workstation built with Python. It is specifically designed for councils, local authorities, and civil engineers to digitise urban assets, model road networks, and perform advanced spatial analysis.
+GIS Network Builder is a modular, high-performance desktop GIS workstation built with Python. It is specifically designed for councils, local authorities, and civil engineers to digitise urban assets, model road networks, and perform advanced spatial analysis.
 
 ## 🚀 Features
 🛠️ Advanced Digitising & UI
