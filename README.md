@@ -40,6 +40,16 @@ Attribute Table: Open the Attribute Table to see all data at once. Double-click 
 
 ## 🏗️ Project Architecture
 
+GUI Framework: CustomTkinter.
+
+Map Widget: TkinterMapView.
+
+Spatial Logic: Shapely & GeoPandas.
+
+Network Engine: NetworkX (Graph Theory).
+
+API Integrations: OpenStreetMap & Nominatim via OSMnx and Geopy.
+
 The project follows a modular structure that separates the user interface from spatial processing, file handling, and export logic.
 
 ```text
