@@ -22,7 +22,7 @@ GIS Network Builder Pro is a modular desktop GIS workstation built with Python. 
 
 ## 📖 Usage Guide
 1. Drawing and Editing
-Draw shapes: Select a mode (Point, Line, or Polygon) from the Draw tab. Left-click on the map to place points. For lines and polygons, click Finish to complete the shape.
+__Draw shapes:__ Select a mode (Point, Line, or Polygon) from the Draw tab. Left-click on the map to place points. For lines and polygons, click Finish to complete the shape.
 Snapping: Adjust the Snapping Tolerance slider in the Layers/Data tab to help connect new lines exactly to existing points.
 Edit Data: Click on any existing shape to open the Dynamic Editor. Here you can add custom fields, change values, or pick a custom colour.
 
