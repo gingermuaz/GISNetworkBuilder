@@ -1,19 +1,17 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, colorchooser
 
 
 class DynamicEditorPopup(tk.Toplevel):
-    """A dedicated class to handle the dynamic attribute editing popup."""
-
     def __init__(self, parent, item, item_type, on_save_callback, on_delete_callback):
         super().__init__(parent)
         self.item = item
         self.item_type = item_type
         self.on_save_callback = on_save_callback
-        self.on_delete_callback = on_delete_callback  # NEW: Handle deletions
+        self.on_delete_callback = on_delete_callback
 
         self.title(f"Edit {item_type} Data")
-        self.geometry("300x450")
+        self.geometry("320x500")
         self.attributes('-topmost', True)
         self.grab_set()
 
@@ -37,14 +35,22 @@ class DynamicEditorPopup(tk.Toplevel):
 
         btn_frame = tk.Frame(self)
         btn_frame.pack(pady=10)
-        tk.Button(btn_frame, text="+ Add Field", command=self._add_blank_field, bg="lightyellow").pack(side="top",
-                                                                                                       pady=5)
-        tk.Button(btn_frame, text="Save Data", command=self._save_changes, bg="lightgreen", width=15).pack(side="top",
-                                                                                                           pady=5)
 
-        # NEW: Delete Button
-        tk.Button(btn_frame, text="🗑️ Delete Shape", command=self._delete_item, bg="#ffcccc", width=15).pack(side="top",
+        # NEW: Color Picker Button
+        tk.Button(btn_frame, text="🎨 Pick Custom Color", command=self._pick_color, bg="#f0f8ff").pack(side="top",
+                                                                                                      pady=5, fill="x")
+
+        tk.Button(btn_frame, text="+ Add Field", command=self._add_blank_field, bg="lightyellow", width=20).pack(
+            side="top", pady=5)
+        tk.Button(btn_frame, text="Save Data", command=self._save_changes, bg="lightgreen", width=20).pack(side="top",
+                                                                                                           pady=5)
+        tk.Button(btn_frame, text="🗑️ Delete Shape", command=self._delete_item, bg="#ffcccc", width=20).pack(side="top",
                                                                                                              pady=5)
+
+    def _pick_color(self):
+        color_code = colorchooser.askcolor(title="Choose Shape Color")[1]
+        if color_code:
+            self.item['custom_color'] = color_code
 
     def _add_field_row(self, key, val):
         key_ent = tk.Entry(self.scrollable_frame, width=12, font=("Arial", 9, "bold"))
