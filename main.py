@@ -253,12 +253,16 @@ class GISNetworkBuilder(tk.Tk):
 
     def finish_line(self):
         if len(self.current_drawing_coords) > 1:
-            line = LineString([(lon, lat) for lat, lon in self.current_drawing_coords])
-            new_edge = {'geometry': line,
-                        'attributes': {'Name': f"Line_{len(self.edges) + 1}", 'Speed': "50", 'Weight': "1.0"}}
-            self.edges.append(new_edge);
-            self.history.append(('add', 'line', new_edge));
-            self.set_mode("None");
+            coords = self.current_drawing_coords
+            line = LineString([(lon, lat) for lat, lon in coords])
+            length_m = sum(geodesic(coords[i], coords[i + 1]).meters for i in range(len(coords) - 1))
+            # Changed Speed default to 30
+            new_edge = {'EdgeID': len(self.edges) + 1, 'geometry': line,
+                        'attributes': {'Name': f"Road_{len(self.edges) + 1}", 'Speed': "30",
+                                       'Length_m': round(length_m, 2)}}
+            self.edges.append(new_edge)
+            self.history.append(('add', 'line', new_edge))
+            self.set_mode("None")
             self.render_map()
 
     def finish_polygon(self):
@@ -309,23 +313,44 @@ class GISNetworkBuilder(tk.Tk):
     def calculate_route(self):
         if not self.route_start_coord or not self.route_end_coord: return
         try:
-            coords, segments = network_engine.calculate_shortest_path(self.edges, self.route_start_coord,
-                                                                      self.route_end_coord)
+            # Unpack the new total_time_sec variable
+            route_coords, segment_count, total_time_sec = network_engine.calculate_shortest_path(self.edges,
+                                                                                                 self.route_start_coord,
+                                                                                                 self.route_end_coord)
             if self.route_path_visual: self.route_path_visual.delete()
-            self.route_path_visual = self.map_widget.set_path(coords, color="magenta", width=5)
-        except Exception as err:
-            messagebox.showerror("Error", str(err))
+            self.route_path_visual = self.map_widget.set_path(route_coords, color="magenta", width=5)
 
-    def calculate_isochrone_area(self, start):
-        cost = askfloat("Service Area", "Max cost:", minvalue=0.1)
-        if not cost: return
+            # Format time
+            mins = int(total_time_sec // 60)
+            secs = int(total_time_sec % 60)
+
+            messagebox.showinfo("Route Found!",
+                                f"Fastest path calculated across {segment_count} road segments.\n\nEstimated Travel Time: {mins} min {secs} sec.")
+        except ValueError as err:
+            messagebox.showerror("Routing Error", str(err))
+
+    def calculate_isochrone_area(self, start_coord):
+        # Ask for budget in Seconds (e.g., a 2-minute drive = 120 seconds)
+        max_time_sec = askfloat("Service Area", "Enter maximum travel time budget (in SECONDS):", minvalue=1)
+        if not max_time_sec: return
         try:
-            paths, hull = network_engine.calculate_isochrone(self.edges, start, cost)
-            for pc in paths: self.isochrone_paths_visual.append(
-                self.map_widget.set_path([(lat, lon) for lon, lat in pc], color="cyan", width=4))
-            if hull: self.isochrone_poly_visual = self.map_widget.set_polygon(hull, fill_color="cyan",
-                                                                              outline_color="teal")
-        except Exception as err:
+            for p in self.isochrone_paths_visual: p.delete()
+            if self.isochrone_poly_visual: self.isochrone_poly_visual.delete()
+            self.isochrone_paths_visual.clear()
+
+            reachable_paths, hull_coords = network_engine.calculate_isochrone(self.edges, start_coord, max_time_sec)
+
+            for path_coords in reachable_paths:
+                visual = self.map_widget.set_path([(lat, lon) for lon, lat in path_coords], color="cyan", width=4)
+                self.isochrone_paths_visual.append(visual)
+            if hull_coords:
+                self.isochrone_poly_visual = self.map_widget.set_polygon(hull_coords, fill_color="cyan",
+                                                                         outline_color="teal", border_width=2)
+
+            mins = int(max_time_sec // 60)
+            messagebox.showinfo("Success",
+                                f"Service area calculated!\nFound {len(reachable_paths)} road segments reachable within {mins} minutes.")
+        except ValueError as err:
             messagebox.showerror("Error", str(err))
 
     def run_geofence(self, target_poly):
