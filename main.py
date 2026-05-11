@@ -1,11 +1,12 @@
+import customtkinter as ctk
 import tkinter as tk
-from tkinter import messagebox, filedialog, ttk
+from tkinter import messagebox, filedialog
 import tkintermapview
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry import Point, LineString, Polygon
-from shapely import wkt  # NEW: For converting geometry to text for JSON saving
-import json  # NEW: For saving/loading workspaces
+from shapely import wkt
+import json
 import os
 from geopy.distance import geodesic
 from geopy.geocoders import Nominatim
@@ -17,12 +18,16 @@ import network_engine
 import ui_datatable
 import web_export
 
+# NEW: Set the modern theme and dark mode!
+ctk.set_appearance_mode("Dark")  # Modes: "System", "Dark", "Light"
+ctk.set_default_color_theme("blue")  # Themes: "blue", "green", "dark-blue"
 
-class GISNetworkBuilder(tk.Tk):
+
+class GISNetworkBuilder(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("GIS Network Builder Pro - Ultimate Edition")
-        self.geometry("1200x800")
+        self.title("GIS Network Builder Pro - Enterprise Edition")
+        self.geometry("1250x800")
 
         self.nodes, self.edges, self.polygons = [], [], []
         self.current_mode = "None"
@@ -42,107 +47,130 @@ class GISNetworkBuilder(tk.Tk):
         self.setup_ui()
 
     def setup_ui(self):
-        left_panel = tk.Frame(self, width=250)
-        left_panel.pack(side="left", fill="y", padx=5, pady=5)
-        notebook = ttk.Notebook(left_panel)
-        notebook.pack(fill="both", expand=True)
+        # NEW: Modern CTkFrame for the sidebar
+        left_panel = ctk.CTkFrame(self, width=300, corner_radius=0)
+        left_panel.pack(side="left", fill="y")
 
-        tab_draw, tab_tools, tab_layers = tk.Frame(notebook), tk.Frame(notebook), tk.Frame(notebook)
-        notebook.add(tab_draw, text="Draw");
-        notebook.add(tab_tools, text="Tools");
-        notebook.add(tab_layers, text="Layers/Data")
+        # NEW: Modern CTkTabview
+        self.tabview = ctk.CTkTabview(left_panel, width=280)
+        self.tabview.pack(fill="both", expand=True, padx=10, pady=10)
+
+        tab_draw = self.tabview.add("Draw")
+        tab_tools = self.tabview.add("Tools")
+        tab_layers = self.tabview.add("Layers")
 
         self._setup_draw_tab(tab_draw)
         self._setup_tools_tab(tab_tools)
         self._setup_layers_tab(tab_layers)
 
-        map_container = tk.Frame(self)
+        map_container = ctk.CTkFrame(self, corner_radius=0)
         map_container.pack(side="right", fill="both", expand=True)
 
-        search_frame = tk.Frame(map_container, pady=5)
-        search_frame.pack(side="top", fill="x")
-        tk.Label(search_frame, text="Search Address:").pack(side="left", padx=5)
-        self.search_entry = tk.Entry(search_frame, width=40)
+        search_frame = ctk.CTkFrame(map_container, height=50, corner_radius=0, fg_color="transparent")
+        search_frame.pack(side="top", fill="x", padx=10, pady=10)
+
+        ctk.CTkLabel(search_frame, text="🔍 Search:", font=("Arial", 14, "bold")).pack(side="left", padx=(0, 10))
+        self.search_entry = ctk.CTkEntry(search_frame, width=300, placeholder_text="e.g., Moseley, Birmingham")
         self.search_entry.pack(side="left", padx=5, fill="x", expand=True)
         self.search_entry.bind("<Return>", lambda e: self.search_location())
-        tk.Button(search_frame, text="🔍 Search", command=self.search_location).pack(side="left", padx=5)
+        ctk.CTkButton(search_frame, text="Fly To", width=100, command=self.search_location).pack(side="left", padx=5)
 
         db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "map_cache.db")
-        self.map_widget = tkintermapview.TkinterMapView(map_container, corner_radius=0, database_path=db_path)
-        self.map_widget.pack(side="bottom", fill="both", expand=True)
+        self.map_widget = tkintermapview.TkinterMapView(map_container, corner_radius=10, database_path=db_path)
+        self.map_widget.pack(side="bottom", fill="both", expand=True, padx=10, pady=(0, 10))
         self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)
         self.map_widget.set_position(52.4862, -1.8904);
         self.map_widget.set_zoom(15)
         self.map_widget.add_left_click_map_command(self.map_click)
 
     def _setup_draw_tab(self, parent):
-        tk.Button(parent, text="Draw Point", command=lambda: self.set_mode("Point"), width=20).pack(pady=5)
-        tk.Button(parent, text="Draw Line", command=lambda: self.set_mode("Line"), width=20).pack(pady=(15, 5))
-        tk.Button(parent, text="Finish Line", command=self.finish_line, width=20, bg="lightblue").pack(pady=5)
-        tk.Button(parent, text="Draw Polygon", command=lambda: self.set_mode("Polygon"), width=20).pack(pady=(15, 5))
-        tk.Button(parent, text="Finish Polygon", command=self.finish_polygon, width=20, bg="#d4edda").pack(pady=5)
-        tk.Frame(parent, height=2, bg="gray").pack(fill="x", padx=20, pady=10)
-        tk.Button(parent, text="↩️ Undo (Ctrl+Z)", command=self.undo_action, width=20, bg="#f0f0f0").pack(pady=5)
-        self.lbl_status = tk.Label(parent, text="Mode: None", fg="blue", font=("Arial", 10, "bold"))
+        # NEW: Modern CTkButtons with hover effects
+        ctk.CTkButton(parent, text="📍 Draw Point", command=lambda: self.set_mode("Point")).pack(pady=5, fill="x",
+                                                                                                padx=20)
+        ctk.CTkButton(parent, text="📏 Draw Line", command=lambda: self.set_mode("Line")).pack(pady=(15, 5), fill="x",
+                                                                                              padx=20)
+        ctk.CTkButton(parent, text="✓ Finish Line", command=self.finish_line, fg_color="#2ecc71",
+                      hover_color="#27ae60").pack(pady=5, fill="x", padx=20)
+        ctk.CTkButton(parent, text="⬡ Draw Polygon", command=lambda: self.set_mode("Polygon")).pack(pady=(15, 5),
+                                                                                                    fill="x", padx=20)
+        ctk.CTkButton(parent, text="✓ Finish Polygon", command=self.finish_polygon, fg_color="#2ecc71",
+                      hover_color="#27ae60").pack(pady=5, fill="x", padx=20)
+
+        ctk.CTkFrame(parent, height=2).pack(fill="x", padx=20, pady=15)
+        ctk.CTkButton(parent, text="↩️ Undo (Ctrl+Z)", command=self.undo_action, fg_color="#95a5a6",
+                      hover_color="#7f8c8d").pack(pady=5, fill="x", padx=20)
+        self.lbl_status = ctk.CTkLabel(parent, text="Mode: NONE", text_color="#3498db", font=("Arial", 14, "bold"))
         self.lbl_status.pack(pady=20)
 
     def _setup_tools_tab(self, parent):
-        tk.Label(parent, text="Network Routing", font=("Arial", 10, "bold")).pack(pady=10)
-        tk.Button(parent, text="Set Start Point", command=lambda: self.set_mode("SetStart"), width=20).pack(pady=5)
-        tk.Button(parent, text="Set End Point", command=lambda: self.set_mode("SetEnd"), width=20).pack(pady=5)
-        tk.Button(parent, text="Calculate Shortest Path", command=self.calculate_route, width=20, bg="plum").pack(
-            pady=10)
-        tk.Button(parent, text="Calculate Service Area", command=lambda: self.set_mode("SetIsochrone"), width=20,
-                  bg="thistle").pack(pady=5)
-        tk.Button(parent, text="Clear Route", command=self.clear_route, width=20).pack(pady=5)
-        self.lbl_route = tk.Label(parent, text="Start: Not Set\nEnd: Not Set", fg="purple");
-        self.lbl_route.pack(pady=10)
-        tk.Frame(parent, height=2, bg="gray").pack(fill="x", padx=20, pady=10)
-        tk.Label(parent, text="Spatial Analysis", font=("Arial", 10, "bold")).pack(pady=5)
-        tk.Button(parent, text="Select by Polygon", command=lambda: self.set_mode("Geofence"), width=20,
-                  bg="#fffacd").pack(pady=5)
-        tk.Button(parent, text="Clear Selection", command=self.render_map, width=20).pack(pady=5)
+        ctk.CTkLabel(parent, text="Network Routing", font=("Arial", 14, "bold")).pack(pady=10)
+        ctk.CTkButton(parent, text="🟢 Set Start Point", command=lambda: self.set_mode("SetStart"), fg_color="#27ae60",
+                      hover_color="#1e8449").pack(pady=5, fill="x", padx=20)
+        ctk.CTkButton(parent, text="🔴 Set End Point", command=lambda: self.set_mode("SetEnd"), fg_color="#c0392b",
+                      hover_color="#922b21").pack(pady=5, fill="x", padx=20)
+        ctk.CTkButton(parent, text="⚡ Calculate Route", command=self.calculate_route, fg_color="#8e44ad",
+                      hover_color="#732d91").pack(pady=10, fill="x", padx=20)
+        ctk.CTkButton(parent, text="⏳ Calculate Isochrone", command=lambda: self.set_mode("SetIsochrone")).pack(pady=5,
+                                                                                                                fill="x",
+                                                                                                                padx=20)
+        ctk.CTkButton(parent, text="✖ Clear Route", command=self.clear_route, fg_color="transparent", border_width=1,
+                      text_color=("gray10", "gray90")).pack(pady=5, fill="x", padx=20)
+
+        self.lbl_route = ctk.CTkLabel(parent, text="Start: Not Set\nEnd: Not Set", text_color="#9b59b6")
+        self.lbl_route.pack(pady=5)
+
+        ctk.CTkFrame(parent, height=2).pack(fill="x", padx=20, pady=10)
+        ctk.CTkLabel(parent, text="Spatial Analysis", font=("Arial", 14, "bold")).pack(pady=5)
+        ctk.CTkButton(parent, text="🎯 Geofence Selection", command=lambda: self.set_mode("Geofence"),
+                      fg_color="#f39c12", hover_color="#d68910").pack(pady=5, fill="x", padx=20)
+        ctk.CTkButton(parent, text="Clear Selection", command=self.render_map, fg_color="transparent", border_width=1,
+                      text_color=("gray10", "gray90")).pack(pady=5, fill="x", padx=20)
 
     def _setup_layers_tab(self, parent):
-        tk.Label(parent, text="Visibility", font=("Arial", 10, "bold")).pack(pady=5)
+        # NEW: Use modern CTk scrollable frame for all the options
+        scroll_frame = ctk.CTkScrollableFrame(parent, fg_color="transparent")
+        scroll_frame.pack(fill="both", expand=True)
+
+        ctk.CTkLabel(scroll_frame, text="Visibility", font=("Arial", 14, "bold")).pack(pady=5)
         self.show_points, self.show_lines, self.show_polygons = tk.BooleanVar(value=True), tk.BooleanVar(
             value=True), tk.BooleanVar(value=True)
-        tk.Checkbutton(parent, text="Show Points", variable=self.show_points, command=self.render_map).pack(anchor="w",
-                                                                                                            padx=20)
-        tk.Checkbutton(parent, text="Show Lines", variable=self.show_lines, command=self.render_map).pack(anchor="w",
-                                                                                                          padx=20)
-        tk.Checkbutton(parent, text="Show Polygons", variable=self.show_polygons, command=self.render_map).pack(
-            anchor="w", padx=20)
 
-        tk.Frame(parent, height=2, bg="gray").pack(fill="x", padx=20, pady=5)
-        tk.Label(parent, text="Snapping Tolerance:", font=("Arial", 9)).pack()
-        tk.Scale(parent, from_=0.0, to=0.002, resolution=0.0001, orient="horizontal",
-                 variable=self.snapping_tolerance).pack(fill="x", padx=20)
+        # NEW: Modern Switches instead of checkboxes
+        ctk.CTkSwitch(scroll_frame, text="Show Assets (Points)", variable=self.show_points,
+                      command=self.render_map).pack(anchor="w", padx=20, pady=5)
+        ctk.CTkSwitch(scroll_frame, text="Show Roads (Lines)", variable=self.show_lines, command=self.render_map).pack(
+            anchor="w", padx=20, pady=5)
+        ctk.CTkSwitch(scroll_frame, text="Show Zones (Polys)", variable=self.show_polygons,
+                      command=self.render_map).pack(anchor="w", padx=20, pady=5)
 
-        tk.Frame(parent, height=10).pack()
-        tk.Label(parent, text="Data Tools", font=("Arial", 10, "bold")).pack(pady=2)
-        tk.Button(parent, text="🎨 Generate Choropleth", command=self.generate_choropleth, width=20, bg="#ffefd5").pack(
-            pady=2)
-        tk.Button(parent, text="📊 Attribute Table", command=self.open_attribute_table, width=20, bg="#e6e6fa").pack(
-            pady=2)
-        tk.Button(parent, text="🌐 Web Map Export", command=self.export_to_web, width=20, bg="#e0ffff").pack(pady=2)
-        tk.Button(parent, text="📄 Export to CSV", command=self.export_to_csv, width=20, bg="#dcdcdc").pack(pady=2)
+        ctk.CTkFrame(scroll_frame, height=2).pack(fill="x", padx=20, pady=10)
+        ctk.CTkLabel(scroll_frame, text="Snapping Tolerance:", font=("Arial", 12)).pack()
 
-        tk.Frame(parent, height=10).pack()
-        tk.Label(parent, text="File I/O", font=("Arial", 10, "bold")).pack(pady=2)
+        # NEW: Modern Slider
+        ctk.CTkSlider(scroll_frame, from_=0.0, to=0.002, variable=self.snapping_tolerance).pack(fill="x", padx=20,
+                                                                                                pady=5)
 
-        tk.Button(parent, text="🌍 Import OSM Data", command=self.import_osm_data, width=20, bg="#ffebcd").pack(pady=2)
+        ctk.CTkLabel(scroll_frame, text="Data Tools", font=("Arial", 14, "bold")).pack(pady=(15, 5))
+        ctk.CTkButton(scroll_frame, text="🎨 Generate Choropleth", command=self.generate_choropleth,
+                      fg_color="#16a085").pack(pady=2, fill="x", padx=20)
+        ctk.CTkButton(scroll_frame, text="📊 Attribute Table", command=self.open_attribute_table).pack(pady=2, fill="x",
+                                                                                                      padx=20)
+        ctk.CTkButton(scroll_frame, text="🌐 Web Map Export", command=self.export_to_web).pack(pady=2, fill="x", padx=20)
+        ctk.CTkButton(scroll_frame, text="📄 Export to CSV", command=self.export_to_csv).pack(pady=2, fill="x", padx=20)
 
-        # NEW: Project Save/Load Buttons
-        tk.Button(parent, text="💾 Save Project (JSON)", command=self.save_workspace, width=20, bg="#ffb6c1").pack(
-            pady=2)
-        tk.Button(parent, text="📂 Load Project (JSON)", command=self.load_workspace, width=20, bg="#ffdab9").pack(
-            pady=2)
-
-        tk.Button(parent, text="📂 Load GIS File", command=self.load_file, width=20, bg="#ffe5b4").pack(pady=2)
-        tk.Button(parent, text="💾 Save SHP", command=self.save_network, width=20, bg="lightgreen").pack(pady=2)
-
-        tk.Button(parent, text="🗑️ Clear Map", command=self.clear_map, width=20, bg="#ffcccc").pack(pady=10)
+        ctk.CTkLabel(scroll_frame, text="File I/O", font=("Arial", 14, "bold")).pack(pady=(15, 5))
+        ctk.CTkButton(scroll_frame, text="🌍 Import OSM Data", command=self.import_osm_data, fg_color="#d35400").pack(
+            pady=5, fill="x", padx=20)
+        ctk.CTkButton(scroll_frame, text="💾 Save Project (JSON)", command=self.save_workspace).pack(pady=2, fill="x",
+                                                                                                    padx=20)
+        ctk.CTkButton(scroll_frame, text="📂 Load Project (JSON)", command=self.load_workspace).pack(pady=2, fill="x",
+                                                                                                    padx=20)
+        ctk.CTkButton(scroll_frame, text="📂 Load GIS File", command=self.load_file, fg_color="transparent",
+                      border_width=1).pack(pady=2, fill="x", padx=20)
+        ctk.CTkButton(scroll_frame, text="💾 Save SHP", command=self.save_network, fg_color="transparent",
+                      border_width=1).pack(pady=2, fill="x", padx=20)
+        ctk.CTkButton(scroll_frame, text="🗑️ Clear Map", command=self.clear_map, fg_color="#c0392b",
+                      hover_color="#922b21").pack(pady=(15, 5), fill="x", padx=20)
 
     # ==========================================
     # LOGIC: QoL FEATURES & IMPORTS
@@ -158,7 +186,7 @@ class GISNetworkBuilder(tk.Tk):
 
         try:
             import osmnx as ox
-            self.lbl_status.config(text="Downloading OSM Data...")
+            self.lbl_status.configure(text="Downloading OSM Data...")
             self.update()
 
             G = ox.graph_from_address(place_name, dist=1500, network_type='drive')
@@ -205,16 +233,16 @@ class GISNetworkBuilder(tk.Tk):
                 self.map_widget.set_position(self.nodes[-1]['geometry'].y, self.nodes[-1]['geometry'].x)
                 self.map_widget.set_zoom(14)
 
-            self.lbl_status.config(text="Mode: None")
+            self.lbl_status.configure(text="Mode: NONE")
             self.render_map()
             messagebox.showinfo("Success",
                                 f"Imported {len(node_map)} intersections and {len(G.edges)} roads within 1.5km of {place_name}!")
 
         except ImportError:
             messagebox.showerror("Missing Library", "OSMnx is not installed.\nPlease run: pip install osmnx")
-            self.lbl_status.config(text="Mode: None")
+            self.lbl_status.configure(text="Mode: NONE")
         except Exception as e:
-            self.lbl_status.config(text="Mode: None")
+            self.lbl_status.configure(text="Mode: NONE")
             messagebox.showerror("OSM Import Error", f"Could not fetch data for '{place_name}'.\n\nError: {e}")
 
     def get_snapped_coord(self, lat, lon):
@@ -228,7 +256,6 @@ class GISNetworkBuilder(tk.Tk):
     # WORKSPACE SAVE / LOAD (JSON)
     # ==========================================
     def save_workspace(self):
-        """Saves the entire active session to a JSON file."""
         if not self.nodes and not self.edges and not self.polygons:
             messagebox.showinfo("Info", "Map is empty! Nothing to save.")
             return
@@ -262,7 +289,6 @@ class GISNetworkBuilder(tk.Tk):
             messagebox.showerror("Error", f"Could not save workspace: {e}")
 
     def load_workspace(self):
-        """Loads a previously saved JSON workspace, restoring all attributes and styling."""
         filepath = filedialog.askopenfilename(filetypes=[("JSON Project", "*.json")])
         if not filepath: return
 
@@ -270,7 +296,6 @@ class GISNetworkBuilder(tk.Tk):
             with open(filepath, "r") as f:
                 workspace_data = json.load(f)
 
-            # Clear current map completely before loading new workspace
             self.nodes.clear()
             self.edges.clear()
             self.polygons.clear()
@@ -304,7 +329,6 @@ class GISNetworkBuilder(tk.Tk):
                 if "custom_color" in p_data: poly["custom_color"] = p_data["custom_color"]
                 self.polygons.append(poly)
 
-            # Center map on newly loaded data
             if self.nodes:
                 self.map_widget.set_position(self.nodes[0]['geometry'].y, self.nodes[0]['geometry'].x)
             elif self.edges:
@@ -324,7 +348,7 @@ class GISNetworkBuilder(tk.Tk):
     def set_mode(self, mode_name):
         self.current_mode = mode_name;
         self.current_drawing_coords = []
-        self.lbl_status.config(text=f"Mode: {mode_name.upper()}")
+        self.lbl_status.configure(text=f"Mode: {mode_name.upper()}")
 
     def search_location(self):
         address = self.search_entry.get()
@@ -354,7 +378,7 @@ class GISNetworkBuilder(tk.Tk):
                 speed = float(e['attributes'].get('Speed', 30)) if str(e['attributes'].get('Speed', 30)).replace('.',
                                                                                                                  '',
                                                                                                                  1).isdigit() else 30
-                color = e.get('custom_color', ("green" if speed < 30 else "orange" if speed <= 60 else "red"))
+                color = e.get('custom_color', ("#2ecc71" if speed < 30 else "#f39c12" if speed <= 60 else "#c0392b"))
                 self.map_widget.set_path([(y, x) for x, y in e['geometry'].coords], color=color, width=3,
                                          command=self.on_path_click)
         if self.show_points.get():
@@ -363,26 +387,13 @@ class GISNetworkBuilder(tk.Tk):
                 self.map_widget.set_marker(n['geometry'].y, n['geometry'].x, text=label_text,
                                            command=self.on_marker_click)
 
-        # --- NEW: Draw Start and End Markers in Green and Red ---
+        # Draw Start and End Markers in Green and Red
         if self.route_start_coord:
             self.map_widget.set_marker(self.route_start_coord[1], self.route_start_coord[0], text="Start",
-                                       marker_color_circle="white", marker_color_outside="green")
+                                       marker_color_circle="white", marker_color_outside="#27ae60")
         if self.route_end_coord:
             self.map_widget.set_marker(self.route_end_coord[1], self.route_end_coord[0], text="End",
-                                       marker_color_circle="white", marker_color_outside="red")
-        if self.show_lines.get():
-            for e in self.edges:
-                speed = float(e['attributes'].get('Speed', 30)) if str(e['attributes'].get('Speed', 30)).replace('.',
-                                                                                                                 '',
-                                                                                                                 1).isdigit() else 30
-                color = e.get('custom_color', ("green" if speed < 30 else "orange" if speed <= 60 else "red"))
-                self.map_widget.set_path([(y, x) for x, y in e['geometry'].coords], color=color, width=3,
-                                         command=self.on_path_click)
-        if self.show_points.get():
-            for n in self.nodes:
-                label_text = n['attributes'].get('Asset', n['attributes'].get('Name', 'Point'))
-                self.map_widget.set_marker(n['geometry'].y, n['geometry'].x, text=label_text,
-                                           command=self.on_marker_click)
+                                       marker_color_circle="white", marker_color_outside="#c0392b")
 
     def map_click(self, coords):
         lat, lon = self.get_snapped_coord(coords[0], coords[1])
@@ -395,9 +406,9 @@ class GISNetworkBuilder(tk.Tk):
             self.render_map()
         elif self.current_mode in ["Line", "Polygon"]:
             self.current_drawing_coords.append((lat, lon))
-            self.map_widget.set_marker(lat, lon, marker_color_circle="blue")
-            if len(self.current_drawing_coords) > 1: self.map_widget.set_path(self.current_drawing_coords, color="blue",
-                                                                              width=2)
+            self.map_widget.set_marker(lat, lon, marker_color_circle="#3498db")
+            if len(self.current_drawing_coords) > 1: self.map_widget.set_path(self.current_drawing_coords,
+                                                                              color="#3498db", width=2)
         elif self.current_mode in ["SetStart", "SetEnd", "SetIsochrone"]:
             if self.current_mode == "SetStart":
                 self.route_start_coord = (lon, lat)
@@ -407,15 +418,15 @@ class GISNetworkBuilder(tk.Tk):
                 self.calculate_isochrone_area((lon, lat))
             self.update_route_label()
             self.set_mode("None")
-            self.render_map()  # <--- NEW: Force map to redraw to show the green/red markers
+            self.render_map()
 
     def on_marker_click(self, marker):
         lat, lon = marker.position
         if self.current_mode in ["SetStart", "SetEnd", "SetIsochrone"]: self.map_click((lat, lon)); return
         if self.current_mode in ["Line", "Polygon"]:
             self.current_drawing_coords.append((lat, lon))
-            if len(self.current_drawing_coords) > 1: self.map_widget.set_path(self.current_drawing_coords, color="blue",
-                                                                              width=2)
+            if len(self.current_drawing_coords) > 1: self.map_widget.set_path(self.current_drawing_coords,
+                                                                              color="#3498db", width=2)
             return
         target = next(
             (n for n in self.nodes if abs(n['geometry'].x - lon) < 0.0001 and abs(n['geometry'].y - lat) < 0.0001),
@@ -492,7 +503,7 @@ class GISNetworkBuilder(tk.Tk):
     def update_route_label(self):
         s_text = f"{self.route_start_coord[0]:.3f}, {self.route_start_coord[1]:.3f}" if self.route_start_coord else "Not Set"
         e_text = f"{self.route_end_coord[0]:.3f}, {self.route_end_coord[1]:.3f}" if self.route_end_coord else "Not Set"
-        self.lbl_route.config(text=f"Start: {s_text}\nEnd: {e_text}")
+        self.lbl_route.configure(text=f"Start: {s_text}\nEnd: {e_text}")
 
     def clear_route(self):
         self.route_start_coord, self.route_end_coord = None, None
@@ -502,7 +513,7 @@ class GISNetworkBuilder(tk.Tk):
         self.isochrone_paths_visual.clear()
         self.isochrone_poly_visual = None
         self.update_route_label()
-        self.render_map()  # <--- NEW: Force map to redraw to remove the green/red markers
+        self.render_map()
 
     def calculate_route(self):
         if not self.route_start_coord or not self.route_end_coord: return
@@ -511,7 +522,7 @@ class GISNetworkBuilder(tk.Tk):
                                                                                                  self.route_start_coord,
                                                                                                  self.route_end_coord)
             if self.route_path_visual: self.route_path_visual.delete()
-            self.route_path_visual = self.map_widget.set_path(route_coords, color="magenta", width=5)
+            self.route_path_visual = self.map_widget.set_path(route_coords, color="#9b59b6", width=5)
 
             mins = int(total_time_sec // 60)
             secs = int(total_time_sec % 60)
@@ -531,11 +542,11 @@ class GISNetworkBuilder(tk.Tk):
             reachable_paths, hull_coords = network_engine.calculate_isochrone(self.edges, start_coord, max_time_sec)
 
             for path_coords in reachable_paths:
-                visual = self.map_widget.set_path([(lat, lon) for lon, lat in path_coords], color="cyan", width=4)
+                visual = self.map_widget.set_path([(lat, lon) for lon, lat in path_coords], color="#00ffff", width=4)
                 self.isochrone_paths_visual.append(visual)
             if hull_coords:
-                self.isochrone_poly_visual = self.map_widget.set_polygon(hull_coords, fill_color="cyan",
-                                                                         outline_color="teal", border_width=2)
+                self.isochrone_poly_visual = self.map_widget.set_polygon(hull_coords, fill_color="#00ffff",
+                                                                         outline_color="#008080", border_width=2)
 
             mins = int(max_time_sec // 60)
             messagebox.showinfo("Success",
@@ -547,8 +558,8 @@ class GISNetworkBuilder(tk.Tk):
         selected_nodes = [n for n in self.nodes if target_poly['geometry'].contains(n['geometry'])]
         selected_edges = [e for e in self.edges if target_poly['geometry'].intersects(e['geometry'])]
         for n in selected_nodes: self.map_widget.set_marker(n['geometry'].y, n['geometry'].x,
-                                                            marker_color_circle="yellow")
-        for e in selected_edges: self.map_widget.set_path([(y, x) for x, y in e['geometry'].coords], color="yellow",
+                                                            marker_color_circle="#f1c40f")
+        for e in selected_edges: self.map_widget.set_path([(y, x) for x, y in e['geometry'].coords], color="#f1c40f",
                                                           width=4)
         messagebox.showinfo("Geofence", f"Found {len(selected_nodes)} points and {len(selected_edges)} lines.");
         self.set_mode("None")
