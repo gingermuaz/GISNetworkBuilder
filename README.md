@@ -21,21 +21,21 @@ GIS Network Builder Pro is a modular desktop GIS workstation built with Python. 
 4) Flexible I/O: Save and load standard Shapefiles (.shp) or export data attributes to CSV for use in Excel.
 
 ## 📖 Usage Guide
-1. Drawing and Editing
-__Draw shapes__: Select a mode (Point, Line, or Polygon) from the Draw tab. Left-click on the map to place points. For lines and polygons, click Finish to complete the shape.
+1. __Drawing and Editing
+Draw shapes__: Select a mode (Point, Line, or Polygon) from the Draw tab. Left-click on the map to place points. For lines and polygons, click Finish to complete the shape.
 Snapping: Adjust the Snapping Tolerance slider in the Layers/Data tab to help connect new lines exactly to existing points.
 Edit Data: Click on any existing shape to open the Dynamic Editor. Here you can add custom fields, change values, or pick a custom colour.
 
-2. Network Analysis
-__Shortest Path__: In the Tools tab, use "Set Start" and "Set End" to choose your points on the map. Click Calculate Shortest Path to see the route.
+2. __Network Analysis
+Shortest Path__: In the Tools tab, use "Set Start" and "Set End" to choose your points on the map. Click Calculate Shortest Path to see the route.
 Service Areas: Select Calculate Service Area, click a point on the map, and enter your "budget" (distance/cost) to visualise reachable areas.
 
-3. Spatial Analysis & Visualisation
-__Geofencing__: Click Select by Polygon in the Tools tab, then click on an existing polygon on the map. The app will highlight all points and lines inside that zone.
+3. __Spatial Analysis & Visualisation
+Geofencing__: Click Select by Polygon in the Tools tab, then click on an existing polygon on the map. The app will highlight all points and lines inside that zone.
 Choropleth: In the Layers/Data tab, click Generate Choropleth and enter a numeric attribute name (like Area_sqm) to colour-code your polygons by value.
 
-4. Search and Navigation
-__Search__: Type any address or landmark into the search bar above the map and press Enter to instantly fly to that location.
+4. __Search and Navigation
+Search__: Type any address or landmark into the search bar above the map and press Enter to instantly fly to that location.
 Attribute Table: Open the Attribute Table to see all data at once. Double-click a row to zoom the map directly to that feature.
 
 ## 🏗️ Project Architecture
