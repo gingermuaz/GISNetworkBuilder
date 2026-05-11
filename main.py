@@ -18,9 +18,9 @@ import network_engine
 import ui_datatable
 import web_export
 
-# NEW: Set the modern theme and dark mode!
-ctk.set_appearance_mode("Dark")  # Modes: "System", "Dark", "Light"
-ctk.set_default_color_theme("blue")  # Themes: "blue", "green", "dark-blue"
+# Set the modern theme and dark mode!
+ctk.set_appearance_mode("Dark")
+ctk.set_default_color_theme("blue")
 
 
 class GISNetworkBuilder(ctk.CTk):
@@ -47,11 +47,9 @@ class GISNetworkBuilder(ctk.CTk):
         self.setup_ui()
 
     def setup_ui(self):
-        # NEW: Modern CTkFrame for the sidebar
         left_panel = ctk.CTkFrame(self, width=300, corner_radius=0)
         left_panel.pack(side="left", fill="y")
 
-        # NEW: Modern CTkTabview
         self.tabview = ctk.CTkTabview(left_panel, width=280)
         self.tabview.pack(fill="both", expand=True, padx=10, pady=10)
 
@@ -78,13 +76,14 @@ class GISNetworkBuilder(ctk.CTk):
         db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "map_cache.db")
         self.map_widget = tkintermapview.TkinterMapView(map_container, corner_radius=10, database_path=db_path)
         self.map_widget.pack(side="bottom", fill="both", expand=True, padx=10, pady=(0, 10))
+
+        # Default to Google Maps on startup
         self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)
         self.map_widget.set_position(52.4862, -1.8904);
         self.map_widget.set_zoom(15)
         self.map_widget.add_left_click_map_command(self.map_click)
 
     def _setup_draw_tab(self, parent):
-        # NEW: Modern CTkButtons with hover effects
         ctk.CTkButton(parent, text="📍 Draw Point", command=lambda: self.set_mode("Point")).pack(pady=5, fill="x",
                                                                                                 padx=20)
         ctk.CTkButton(parent, text="📏 Draw Line", command=lambda: self.set_mode("Line")).pack(pady=(15, 5), fill="x",
@@ -127,15 +126,25 @@ class GISNetworkBuilder(ctk.CTk):
                       text_color=("gray10", "gray90")).pack(pady=5, fill="x", padx=20)
 
     def _setup_layers_tab(self, parent):
-        # NEW: Use modern CTk scrollable frame for all the options
         scroll_frame = ctk.CTkScrollableFrame(parent, fg_color="transparent")
         scroll_frame.pack(fill="both", expand=True)
+
+        # --- NEW: Base Map Style Dropdown ---
+        ctk.CTkLabel(scroll_frame, text="Base Map Style", font=("Arial", 14, "bold")).pack(pady=5)
+        self.map_style_var = ctk.StringVar(value="Google Maps")
+        self.map_style_dropdown = ctk.CTkOptionMenu(
+            scroll_frame,
+            variable=self.map_style_var,
+            values=["Google Maps", "Google Satellite", "Google Hybrid", "OpenStreetMap", "Dark Mode"],
+            command=self.change_map_style
+        )
+        self.map_style_dropdown.pack(pady=5, fill="x", padx=20)
+
+        ctk.CTkFrame(scroll_frame, height=2).pack(fill="x", padx=20, pady=10)
 
         ctk.CTkLabel(scroll_frame, text="Visibility", font=("Arial", 14, "bold")).pack(pady=5)
         self.show_points, self.show_lines, self.show_polygons = tk.BooleanVar(value=True), tk.BooleanVar(
             value=True), tk.BooleanVar(value=True)
-
-        # NEW: Modern Switches instead of checkboxes
         ctk.CTkSwitch(scroll_frame, text="Show Assets (Points)", variable=self.show_points,
                       command=self.render_map).pack(anchor="w", padx=20, pady=5)
         ctk.CTkSwitch(scroll_frame, text="Show Roads (Lines)", variable=self.show_lines, command=self.render_map).pack(
@@ -145,8 +154,6 @@ class GISNetworkBuilder(ctk.CTk):
 
         ctk.CTkFrame(scroll_frame, height=2).pack(fill="x", padx=20, pady=10)
         ctk.CTkLabel(scroll_frame, text="Snapping Tolerance:", font=("Arial", 12)).pack()
-
-        # NEW: Modern Slider
         ctk.CTkSlider(scroll_frame, from_=0.0, to=0.002, variable=self.snapping_tolerance).pack(fill="x", padx=20,
                                                                                                 pady=5)
 
@@ -171,6 +178,26 @@ class GISNetworkBuilder(ctk.CTk):
                       border_width=1).pack(pady=2, fill="x", padx=20)
         ctk.CTkButton(scroll_frame, text="🗑️ Clear Map", command=self.clear_map, fg_color="#c0392b",
                       hover_color="#922b21").pack(pady=(15, 5), fill="x", padx=20)
+
+    # ==========================================
+    # MAP STYLE LOGIC
+    # ==========================================
+    def change_map_style(self, style_name):
+        """Changes the background tile server of the map widget dynamically."""
+        if style_name == "Google Maps":
+            self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga",
+                                            max_zoom=22)
+        elif style_name == "Google Satellite":
+            self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=s&hl=en&x={x}&y={y}&z={z}&s=Ga",
+                                            max_zoom=22)
+        elif style_name == "Google Hybrid":
+            self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}&s=Ga",
+                                            max_zoom=22)
+        elif style_name == "OpenStreetMap":
+            self.map_widget.set_tile_server("https://a.tile.openstreetmap.org/{z}/{x}/{y}.png", max_zoom=19)
+        elif style_name == "Dark Mode":
+            # CartoDB Dark Matter tile server
+            self.map_widget.set_tile_server("https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", max_zoom=19)
 
     # ==========================================
     # LOGIC: QoL FEATURES & IMPORTS
