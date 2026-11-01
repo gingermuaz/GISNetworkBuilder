@@ -1,5 +1,6 @@
 import geopandas as gpd
 import fiona
+from shapely import force_2d
 
 # --- Enable KML Support ---
 # By default, Geopandas might block KML reading. These lines force it to allow KMLs.
@@ -34,8 +35,10 @@ def load_spatial_file(filepath):
             # Try to grab a 'Name' or 'id' attribute if the file has one
             name = row.get('Name', row.get('name', row.get('id', f"Imported_{idx}")))
 
-            if geom is None:
+            if geom is None or geom.is_empty:
                 continue
+            # KML/GPX files usually carry a Z (height) value, which the 2D map can't draw
+            geom = force_2d(geom)
 
             if geom.geom_type == 'Point':
                 points.append({'name': str(name), 'geometry': geom})

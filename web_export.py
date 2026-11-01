@@ -2,6 +2,7 @@ import folium
 from folium.plugins import HeatMap  # NEW: Import the HeatMap plugin
 import os
 import webbrowser
+from pathlib import Path
 
 def generate_html_map(nodes, edges, polygons, output_filename="Network_WebMap.html"):
     if nodes:
@@ -11,7 +12,7 @@ def generate_html_map(nodes, edges, polygons, output_filename="Network_WebMap.ht
     else:
         center_lat, center_lon = 52.4862, -1.8904
 
-    m = folium.Map(location=[center_lat, center_lon], zoom_start=14, tiles="CartoDB positron")
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=14, tiles="OpenStreetMap")  # CARTO tiles now need an API key
 
     # --- 1. Draw standard shapes (Polygons, Lines, Points) ---
     for p in polygons:
@@ -41,5 +42,5 @@ def generate_html_map(nodes, edges, polygons, output_filename="Network_WebMap.ht
 
     filepath = os.path.abspath(output_filename)
     m.save(filepath)
-    webbrowser.open(f"file://{filepath}")
+    webbrowser.open(Path(filepath).as_uri())  # proper file:///C:/... URL on Windows, spaces escaped
     return filepath

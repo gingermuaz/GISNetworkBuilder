@@ -7,15 +7,15 @@ GIS Network Builder is a modular, high-performance desktop GIS workstation built
 1) Modern Enterprise UI: Fully overhauled with CustomTkinter, featuring native Dark Mode and rounded, high-end design elements.
 2) Automated Data Import: Instantly pull real-world street grids from OpenStreetMap with automatic road classification and speed limits.
 3) Standardised Asset Management: Integrated dropdowns for rapid, error-free entry of standard council assets (Potholes, Streetlights, Manholes) and road directions.
-4) Intelligent Snapping: Adjustable tolerance slider to ensure perfect connectivity between vertices.
+4) Intelligent Snapping: Adjustable tolerance (in metres) snaps new clicks to the nearest asset point, line vertex, polygon corner or part-way along an existing road, so digitised networks connect properly.
 
 🧠 Network & Spatial Analysis
-1) Real-World Routing: Calculates the fastest path using travel time (seconds) rather than just physical distance.
+1) Real-World Routing: Calculates the fastest path using travel time (seconds) rather than just physical distance. Respects one-way streets and treats T-junctions and shared vertices as junctions.
 2) Time-Based Isochrones: Visualise service coverage areas based on a precise travel time budget (e.g., 5-minute response zones).
 3) Spatial Geofencing: Run "Select by Location" queries to identify all assets or roads interacting within a specific polygon boundary.
 
 📊 Data Visualization & Export
-1) Custom Map Layers: Dynamically switch between Google Maps, Satellite, Hybrid, OpenStreetMap, and Dark Mode base maps.
+1) Custom Map Layers: Dynamically switch between Google Maps, Satellite, Hybrid and OpenStreetMap base maps.
 2) Interactive Web Export: Generate standalone HTML maps featuring interactive popups and Point Density Heatmaps.
 3) Flexible Workspaces: Save entire sessions, including custom styles and attributes, to JSON Project Workspaces.
 4) Industry Standard I/O: Export to Shapefile (.shp) for CAD/GIS or CSV for Microsoft Excel.
@@ -23,7 +23,8 @@ GIS Network Builder is a modular, high-performance desktop GIS workstation built
 ## 📖 Usage Guide
 1. __Drawing and Editing
 Draw shapes__: Select a mode (Point, Line, or Polygon) from the Draw tab. Left-click on the map to place points. For lines and polygons, click Finish to complete the shape.
-Snapping: Adjust the Snapping Tolerance slider in the Layers/Data tab to help connect new lines exactly to existing points.
+Snapping: Adjust the Snapping Tolerance slider (0-50 m, 0 = off) in the Layers tab. Clicks snap to the nearest existing point or vertex, or onto an existing road, so a new road drawn from part-way along another becomes a T-junction. Roads that cross without a shared vertex are not joined (they may be a bridge) - click on the other road to add a crossroads.
+One-way streets: set a line's Direction to "One-Way (A to B)" (A = first point drawn) or "One-Way (B to A)". One-way roads show an arrowhead in the direction of travel, and routing and service areas follow it.
 Edit Data: Click on any existing shape to open the Dynamic Editor. Here you can add custom fields, change values, or pick a custom colour.
 
 2. __Network Analysis
@@ -61,6 +62,7 @@ GISNetworkBuilder/
 ├── ui_datatable.py      # Attribute table and data management UI
 ├── ui_popups.py         # Dialogues, popups, and supporting UI components
 ├── file_handler.py      # Spatial file I/O for SHP, KML, GeoJSON, and CSV
+├── map_tiles.py         # Tile downloads that follow the OpenStreetMap tile usage policy
 ├── requirements.txt     # Python dependencies
 └── README.md            # Project documentation
 ```

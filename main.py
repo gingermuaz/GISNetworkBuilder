@@ -1,13 +1,13 @@
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import messagebox, filedialog
-import tkintermapview
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry import Point, LineString, Polygon
 from shapely import wkt
 import json
 import os
+import time
 from geopy.distance import geodesic
 from geopy.geocoders import Nominatim
 from tkinter.simpledialog import askfloat, askstring
@@ -15,6 +15,7 @@ from tkinter.simpledialog import askfloat, askstring
 import file_handler
 import ui_popups
 import network_engine
+import map_tiles
 import ui_datatable
 import web_export
 
@@ -26,7 +27,7 @@ ctk.set_default_color_theme("blue")
 class GISNetworkBuilder(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("GIS Network Builder Pro - Enterprise Edition")
+        self.title("GIS Network Builder  - V1")
         self.geometry("1250x850")
 
         self.nodes, self.edges, self.polygons = [], [], []
@@ -37,12 +38,14 @@ class GISNetworkBuilder(ctk.CTk):
 
         self.route_start_coord = None
         self.route_end_coord = None
-        self.route_path_visual = None
-        self.isochrone_paths_visual = []
-        self.isochrone_poly_visual = None
+        # Analysis results are kept as coordinates so render_map() can redraw them
+        self.route_coords = []           # [(lat, lon), ...]
+        self.isochrone_path_coords = []  # [[(lat, lon), ...], ...]
+        self.isochrone_hull_coords = []  # [(lat, lon), ...]
 
-        self.geocoder = Nominatim(user_agent="gis_network_builder")
-        self.snapping_tolerance = tk.DoubleVar(value=0.0005)
+        self.geocoder = Nominatim(user_agent=map_tiles.USER_AGENT)
+        self.snapping_tolerance_m = tk.DoubleVar(value=15)  # metres; 0 switches snapping off
+        self._marker_snap = None  # ((lat, lon), time) of a marker clicked while drawing
 
         self.setup_ui()
 
@@ -74,7 +77,9 @@ class GISNetworkBuilder(ctk.CTk):
         ctk.CTkButton(search_frame, text="Fly To", width=100, command=self.search_location).pack(side="left", padx=5)
 
         db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "map_cache.db")
-        self.map_widget = tkintermapview.TkinterMapView(map_container, corner_radius=10, database_path=db_path)
+        # Identify the app to tile servers, cache OSM tiles and limit prefetching (see map_tiles.py)
+        map_tiles.install()
+        self.map_widget = map_tiles.PoliteMapView(map_container, corner_radius=10, database_path=db_path)
         self.map_widget.pack(side="bottom", fill="both", expand=True, padx=10, pady=(0, 10))
 
         # Default to Google Maps on startup
@@ -135,7 +140,7 @@ class GISNetworkBuilder(ctk.CTk):
         self.map_style_dropdown = ctk.CTkOptionMenu(
             scroll_frame,
             variable=self.map_style_var,
-            values=["Google Maps", "Google Satellite", "Google Hybrid", "OpenStreetMap", "Dark Mode"],
+            values=["Google Maps", "Google Satellite", "Google Hybrid", "OpenStreetMap"],
             command=self.change_map_style
         )
         self.map_style_dropdown.pack(pady=5, fill="x", padx=20)
@@ -153,9 +158,11 @@ class GISNetworkBuilder(ctk.CTk):
                       command=self.render_map).pack(anchor="w", padx=20, pady=5)
 
         ctk.CTkFrame(scroll_frame, height=2).pack(fill="x", padx=20, pady=10)
-        ctk.CTkLabel(scroll_frame, text="Snapping Tolerance:", font=("Arial", 12)).pack()
-        ctk.CTkSlider(scroll_frame, from_=0.0, to=0.002, variable=self.snapping_tolerance).pack(fill="x", padx=20,
-                                                                                                pady=5)
+        self.lbl_snap = ctk.CTkLabel(scroll_frame, text=self._snap_label_text(), font=("Arial", 12))
+        self.lbl_snap.pack()
+        ctk.CTkSlider(scroll_frame, from_=0, to=50, number_of_steps=50, variable=self.snapping_tolerance_m,
+                      command=lambda value: self.lbl_snap.configure(text=self._snap_label_text())).pack(
+            fill="x", padx=20, pady=5)
 
         ctk.CTkLabel(scroll_frame, text="Data Tools", font=("Arial", 14, "bold")).pack(pady=(15, 5))
         ctk.CTkButton(scroll_frame, text="🎨 Generate Choropleth", command=self.generate_choropleth,
@@ -190,9 +197,7 @@ class GISNetworkBuilder(ctk.CTk):
             self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}&s=Ga",
                                             max_zoom=22)
         elif style_name == "OpenStreetMap":
-            self.map_widget.set_tile_server("https://a.tile.openstreetmap.org/{z}/{x}/{y}.png", max_zoom=19)
-        elif style_name == "Dark Mode":
-            self.map_widget.set_tile_server("https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", max_zoom=19)
+            self.map_widget.set_tile_server("https://tile.openstreetmap.org/{z}/{x}/{y}.png", max_zoom=19)
 
     def import_osm_data(self):
         prompt_msg = (
@@ -221,7 +226,17 @@ class GISNetworkBuilder(ctk.CTk):
                 self.nodes.append(new_node)
                 node_map[osmid] = new_node
 
+            seen_two_way, roads_added = set(), 0
             for u, v, key, data in G.edges(keys=True, data=True):
+                oneway = data.get('oneway', False)
+                if isinstance(oneway, list): oneway = all(bool(x) for x in oneway)
+                oneway = bool(oneway)
+                if not oneway:
+                    # osmnx stores a two-way street as two edges (u->v and v->u) - keep just one
+                    pair = (min(u, v), max(u, v), round(float(data.get('length', 0.0)), 1))
+                    if pair in seen_two_way: continue
+                    seen_two_way.add(pair)
+
                 if 'geometry' in data:
                     line_geom = data['geometry']
                 else:
@@ -243,13 +258,14 @@ class GISNetworkBuilder(ctk.CTk):
                     'attributes': {
                         'Name': name,
                         'Chainage': "0+000",
-                        'Direction': "Two-Way",
+                        'Direction': network_engine.ONE_WAY_A_TO_B if oneway else network_engine.TWO_WAY,
                         'Class': highway,
                         'Speed': clean_speed,
                         'Length_m': round(float(data.get('length', 0.0)), 2)
                     }
                 }
                 self.edges.append(new_edge)
+                roads_added += 1
 
             if self.nodes:
                 self.map_widget.set_position(self.nodes[-1]['geometry'].y, self.nodes[-1]['geometry'].x)
@@ -258,7 +274,7 @@ class GISNetworkBuilder(ctk.CTk):
             self.lbl_status.configure(text="Mode: NONE")
             self.render_map()
             messagebox.showinfo("Success",
-                                f"Imported {len(node_map)} intersections and {len(G.edges)} roads from {place_name}!")
+                                f"Imported {len(node_map)} intersections and {roads_added} roads from {place_name}!")
 
         except ImportError:
             messagebox.showerror("Missing Library", "OSMnx is not installed.\nPlease run: pip install osmnx")
@@ -267,12 +283,18 @@ class GISNetworkBuilder(ctk.CTk):
             self.lbl_status.configure(text="Mode: NONE")
             messagebox.showerror("OSM Import Error", f"Could not fetch data for '{place_name}'.\n\nError: {e}")
 
+    def _snap_label_text(self):
+        tol = int(round(self.snapping_tolerance_m.get()))
+        return f"Snapping Tolerance: {tol} m" if tol > 0 else "Snapping Tolerance: off"
+
     def get_snapped_coord(self, lat, lon):
-        tol = self.snapping_tolerance.get()
-        for n in self.nodes:
-            if abs(n['geometry'].y - lat) < tol and abs(n['geometry'].x - lon) < tol:
-                return n['geometry'].y, n['geometry'].x
-        return lat, lon
+        """Snap a click to the nearest existing point, vertex or road within the tolerance (metres)."""
+        vertices = [(n['geometry'].x, n['geometry'].y) for n in self.nodes]
+        for e in self.edges: vertices.extend(e['geometry'].coords)
+        for p in self.polygons: vertices.extend(p['geometry'].exterior.coords)
+        snapped = network_engine.snap_coordinate(lon, lat, self.snapping_tolerance_m.get(), vertices,
+                                                 [e['geometry'] for e in self.edges])
+        return (snapped[1], snapped[0]) if snapped else (lat, lon)
 
     def save_workspace(self):
         if not self.nodes and not self.edges and not self.polygons:
@@ -352,20 +374,24 @@ class GISNetworkBuilder(ctk.CTk):
             for p in self.polygons:
                 self.map_widget.set_polygon([(y, x) for x, y in p['geometry'].exterior.coords],
                                             fill_color=p.get('custom_color', "#5288ae"), outline_color="navy",
-                                            border_width=2, command=self.on_polygon_click)
+                                            border_width=2, command=self.on_polygon_click, data=p)
         if self.show_lines.get():
             for e in self.edges:
                 speed = float(e['attributes'].get('Speed', 30)) if str(e['attributes'].get('Speed', 30)).replace('.',
                                                                                                                  '',
                                                                                                                  1).isdigit() else 30
                 color = e.get('custom_color', ("#2ecc71" if speed < 30 else "#f39c12" if speed <= 60 else "#c0392b"))
-                self.map_widget.set_path([(y, x) for x, y in e['geometry'].coords], color=color, width=3,
-                                         command=self.on_path_click)
+                path = self.map_widget.set_path([(y, x) for x, y in e['geometry'].coords], color=color, width=3,
+                                                command=self.on_path_click, data=e)
+                # Arrowhead shows the direction of travel on one-way roads
+                arrow = {'forward': tk.LAST, 'backward': tk.FIRST}.get(network_engine.direction_of(e['attributes']))
+                if arrow and path.canvas_line is not None:
+                    self.map_widget.canvas.itemconfig(path.canvas_line, arrow=arrow, arrowshape=(12, 14, 6))
         if self.show_points.get():
             for n in self.nodes:
                 label_text = n['attributes'].get('Asset', n['attributes'].get('Name', 'Point'))
                 self.map_widget.set_marker(n['geometry'].y, n['geometry'].x, text=label_text,
-                                           command=self.on_marker_click)
+                                           command=self.on_marker_click, data=n)
 
         if self.route_start_coord:
             self.map_widget.set_marker(self.route_start_coord[1], self.route_start_coord[0], text="Start",
@@ -373,9 +399,24 @@ class GISNetworkBuilder(ctk.CTk):
         if self.route_end_coord:
             self.map_widget.set_marker(self.route_end_coord[1], self.route_end_coord[0], text="End",
                                        marker_color_circle="white", marker_color_outside="#c0392b")
+        self._draw_analysis_layers()
+
+    def _draw_analysis_layers(self):
+        """Redraw route / isochrone results (render_map deletes every path and polygon first)."""
+        if self.isochrone_hull_coords:
+            self.map_widget.set_polygon(self.isochrone_hull_coords, fill_color="#00ffff", outline_color="#008080",
+                                        border_width=2)
+        for coords in self.isochrone_path_coords:
+            self.map_widget.set_path(coords, color="#00ffff", width=4)
+        if self.route_coords:
+            self.map_widget.set_path(self.route_coords, color="#9b59b6", width=5)
 
     def map_click(self, coords):
         lat, lon = self.get_snapped_coord(coords[0], coords[1])
+        # Clicking a point marker while drawing: use the marker's exact position (see on_marker_click)
+        if self._marker_snap and time.time() - self._marker_snap[1] < 1.0:
+            lat, lon = self._marker_snap[0]
+        self._marker_snap = None
         if self.current_mode == "Point":
             new_node = {'geometry': Point(lon, lat),
                         'attributes': {'Name': f"P{len(self.nodes) + 1}", 'Asset': 'Streetlight'}}
@@ -384,41 +425,42 @@ class GISNetworkBuilder(ctk.CTk):
             self.set_mode("None");
             self.render_map()
         elif self.current_mode in ["Line", "Polygon"]:
+            if self.current_drawing_coords and self.current_drawing_coords[-1] == (lat, lon):
+                return  # same spot clicked twice
             self.current_drawing_coords.append((lat, lon))
             self.map_widget.set_marker(lat, lon, marker_color_circle="#3498db")
             if len(self.current_drawing_coords) > 1: self.map_widget.set_path(self.current_drawing_coords,
                                                                               color="#3498db", width=2)
         elif self.current_mode in ["SetStart", "SetEnd", "SetIsochrone"]:
+            if self.current_mode == "SetIsochrone":
+                self.set_mode("None")
+                self.calculate_isochrone_area((lon, lat))  # renders the map itself
+                return
             if self.current_mode == "SetStart":
                 self.route_start_coord = (lon, lat)
-            elif self.current_mode == "SetEnd":
-                self.route_end_coord = (lon, lat)
             else:
-                self.calculate_isochrone_area((lon, lat))
+                self.route_end_coord = (lon, lat)
+            self.route_coords = []  # the previous route no longer matches the new start/end
             self.update_route_label(); self.set_mode("None"); self.render_map()
 
     def on_marker_click(self, marker):
         lat, lon = marker.position
         if self.current_mode in ["SetStart", "SetEnd", "SetIsochrone"]: self.map_click((lat, lon)); return
         if self.current_mode in ["Line", "Polygon"]:
-            self.current_drawing_coords.append((lat, lon))
-            if len(self.current_drawing_coords) > 1: self.map_widget.set_path(self.current_drawing_coords,
-                                                                              color="#3498db", width=2)
+            # The map's own click handler runs straight after this one (on mouse release) and adds the
+            # vertex, so just leave it the marker's exact position. Adding it here too made a double vertex.
+            self._marker_snap = ((lat, lon), time.time())
             return
-        target = next(
-            (n for n in self.nodes if abs(n['geometry'].x - lon) < 0.0001 and abs(n['geometry'].y - lat) < 0.0001),
-            None)
+        target = marker.data  # the node this marker was drawn from (set in render_map)
         if target: ui_popups.DynamicEditorPopup(self, target, "Point", self.render_map, self.delete_item_callback)
 
     def on_path_click(self, path):
         if self.current_mode != "None": return
-        first_lon = path.position_list[0][1]
-        target = next((e for e in self.edges if abs(e['geometry'].coords[0][0] - first_lon) < 0.0001), None)
+        target = path.data  # the edge this line was drawn from (set in render_map)
         if target: ui_popups.DynamicEditorPopup(self, target, "Line", self.render_map, self.delete_item_callback)
 
     def on_polygon_click(self, polygon):
-        first_lon = polygon.position_list[0][1]
-        target = next((p for p in self.polygons if abs(p['geometry'].exterior.coords[0][0] - first_lon) < 0.0001), None)
+        target = polygon.data  # the polygon this shape was drawn from (set in render_map)
         if not target: return
         if self.current_mode == "Geofence": self.run_geofence(target); return
         ui_popups.DynamicEditorPopup(self, target, "Polygon", self.render_map, self.delete_item_callback)
@@ -476,34 +518,41 @@ class GISNetworkBuilder(ctk.CTk):
 
     def clear_route(self):
         self.route_start_coord, self.route_end_coord = None, None
-        if self.route_path_visual: self.route_path_visual.delete()
-        for p in self.isochrone_paths_visual: p.delete()
-        if self.isochrone_poly_visual: self.isochrone_poly_visual.delete()
-        self.isochrone_paths_visual.clear(); self.isochrone_poly_visual = None
+        self.route_coords, self.isochrone_path_coords, self.isochrone_hull_coords = [], [], []
         self.update_route_label(); self.render_map()
 
     def calculate_route(self):
-        if not self.route_start_coord or not self.route_end_coord: return
+        if not self.route_start_coord or not self.route_end_coord:
+            messagebox.showinfo("Route", "Set a start and an end point first.")
+            return
         try:
             route_coords, segment_count, total_time_sec = network_engine.calculate_shortest_path(self.edges, self.route_start_coord, self.route_end_coord)
-            if self.route_path_visual: self.route_path_visual.delete()
-            self.route_path_visual = self.map_widget.set_path(route_coords, color="#9b59b6", width=5)
+            self.route_coords = route_coords
+            self.render_map()
             mins = int(total_time_sec // 60); secs = int(total_time_sec % 60)
-            messagebox.showinfo("Route Found!", f"Estimated Travel Time: {mins} min {secs} sec.")
+            msg = f"Estimated Travel Time: {mins} min {secs} sec."
+            # Warn when a clicked point is a long way from the road network (e.g. outside an OSM import)
+            far = []
+            for label, click, used in (("start", self.route_start_coord, route_coords[0]),
+                                       ("end", self.route_end_coord, route_coords[-1])):
+                gap_m = geodesic((click[1], click[0]), used).meters
+                if gap_m > 200: far.append(f"your {label} point is {gap_m:,.0f} m from the nearest road junction")
+            if far:
+                msg += ("\n\nNote: " + " and ".join(far) + ", so the route uses that junction instead. "
+                        "Draw or import roads covering that area for a complete route.")
+            messagebox.showinfo("Route Found!", msg)
         except ValueError as err: messagebox.showerror("Routing Error", str(err))
 
     def calculate_isochrone_area(self, start_coord):
+        if not self.edges:  # say so before asking for a time budget
+            messagebox.showerror("Service Area", network_engine.NO_ROADS_MSG); return
         max_time_sec = askfloat("Service Area", "Enter maximum travel time budget (in SECONDS):", minvalue=1)
         if not max_time_sec: return
         try:
-            for p in self.isochrone_paths_visual: p.delete()
-            if self.isochrone_poly_visual: self.isochrone_poly_visual.delete()
-            self.isochrone_paths_visual.clear()
             reachable_paths, hull_coords = network_engine.calculate_isochrone(self.edges, start_coord, max_time_sec)
-            for path_coords in reachable_paths:
-                visual = self.map_widget.set_path([(lat, lon) for lon, lat in path_coords], color="#00ffff", width=4)
-                self.isochrone_paths_visual.append(visual)
-            if hull_coords: self.isochrone_poly_visual = self.map_widget.set_polygon(hull_coords, fill_color="#00ffff", outline_color="#008080", border_width=2)
+            self.isochrone_path_coords = [[(lat, lon) for lon, lat in path_coords] for path_coords in reachable_paths]
+            self.isochrone_hull_coords = hull_coords
+            self.render_map()
             mins = int(max_time_sec // 60)
             messagebox.showinfo("Success", f"Found {len(reachable_paths)} road segments reachable within {mins} minutes.")
         except ValueError as err: messagebox.showerror("Error", str(err))
@@ -549,7 +598,7 @@ class GISNetworkBuilder(ctk.CTk):
         self.map_widget.set_zoom(17)
 
     def export_to_web(self):
-        try: webbrowser.open(f"file://{os.path.abspath(web_export.generate_html_map(self.nodes, self.edges, self.polygons))}")
+        try: web_export.generate_html_map(self.nodes, self.edges, self.polygons)  # also opens it in the browser
         except Exception as e: messagebox.showerror("Error", str(e))
 
     def save_network(self):
